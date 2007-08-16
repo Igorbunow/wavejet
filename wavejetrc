@@ -1,0 +1,8 @@
+# Wavejet Control Configuration File
+# Order does NOT matter in this file
+
+# Scopie's Address
+addr 127.0.0.1
+
+# Scopie's Port
+port 1861

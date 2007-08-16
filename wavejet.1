@@ -1,0 +1,50 @@
+.TH "WaveJet Control" 1 "2009" "WaveJet Control"
+
+.SH NAME
+\fBWaveJet Control\fR - A remote LeCroy WaveJet series oscilloscope client
+
+.SH SYNOPSIS
+\fBwavejet\fB [\fIaddr\fR [\fIport\fR]]
+
+\fBwavejet\fB \fI-h\fR
+
+.SH DESCRIPTION
+\fBwavejet\fR connects to a LeCroy WaveJet oscilloscope over the network
+and allows to remotely change its settings and view the traces.
+
+.SH CONFIGURATION
+WaveJet Control starts by reading the \fI~/.wavejetrc\fR configuration
+file. If it can't spot it, it'll feel so upset it'll pop up a window upon
+startup so you can set a few first-time configuration options such as the
+scope's address and listening port.
+
+The \fI~/.wavejetrc\fR config file can be safely edited manually; it's made
+of key/value pairs which can be cast in any order to your liking and adorned
+like a Xmas tree with ribbons of in-line or block \fI#\fR-lead comments.
+
+So far, only two settings are taken into accounts:
+.TP
+.B addr
+The IP address of the scope
+
+.TP
+.B port
+The listening port
+
+.SH ARGUMENTS
+\fBWavejet\fR optionally takes the scope address as first argument, optionally
+followed by the port as second argument. These settings will temporarily
+override those set in the \fB~/.wavejetrc\fR config file.
+
+Option \fB-h\fR has \fBwavejet\fR display a short usage line and exit.
+
+.SH AUTHORS
+Jeroen & J\['e]r\[^o]me Belleman
+
+.SH BUGS
+Probably.
+
+.SH CONFESSIONS
+I said this was a LeCroy WaveJet \fBseries\fR client but let's face it:
+I only gave it a try on a baby WaveJet 324. Still, I wouldn't be surprised
+to see it work on other models as long as they chirp the same GPIB dialect.
