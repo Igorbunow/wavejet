@@ -693,7 +693,7 @@ void cbk_opnwinprfs(GtkMenuItem *_itm, void *_gui)
 
 	/* Set all the values we need */
 	if (retval == 0) {
-		retval = gui_winprfs_set(gui, &gui->prfs);
+		retval = gui_winprfs_set(gui);
 	}
 	if (retval < 0) {
 		gtk_widget_show(gui->winprfs);

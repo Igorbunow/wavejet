@@ -36,7 +36,7 @@ char g_strtcpls[GUI_TCPLC][GUI_UNIT_STRLEN] = {
 	"AC" , "DC" , "HF" , "LF"
 };
 
-gui_t *gui_new(void)
+gui_t *gui_new(char *_addr, unsigned _port)
 {	
 	gui_t *gui;
 	int retval;
@@ -49,11 +49,11 @@ gui_t *gui_new(void)
 	gui->cbklocked = 0;
 
 	/* Init command-line args */
-	gui->addr[0] = 0;
-	gui->port = -1;
+	gui->addr = _addr;
+	gui->port = _port;
 
 	/* Visual, for the images we'll draw later on */
-	gui->visual = gdk_visual_get_best();
+	gui->visual = gdk_visual_get_system();
 
 	/* Make main window  */
 	gui->winmain = gui_winmain_new(gui);
@@ -75,14 +75,13 @@ gui_t *gui_new(void)
 	/* Make prefs window */
 	gui->winprfs = gui_winprfs_new(gui);
 
-	/* Read RC file (should you fail, you'll open the RC win & spank the usr) */
+	/* Read RC file (should you fail, open the RC win & spank the usr) */
 	retval = prf_read(&gui->prfs);
 
 	/* Set all the values we need */
-	if (retval == 0) {
-		retval = gui_winprfs_set(gui, &gui->prfs);
-	}
-	if (retval < 0) {
+	if (retval == 0 || gui->addr) {
+		retval = gui_winprfs_set(gui);
+	} else {
 		gtk_widget_show(gui->winprfs);
 	}
 
@@ -785,11 +784,13 @@ GtkWidget *gui_winprfs_new(gui_t *_gui)
 	gtk_widget_show(_gui->etyport);
 
 	/* Error Icons */
-	_gui->imgaddr = gtk_image_new_from_stock(GTK_STOCK_STOP, GTK_ICON_SIZE_MENU);
+	_gui->imgaddr =
+		gtk_image_new_from_stock(GTK_STOCK_STOP, GTK_ICON_SIZE_MENU);
 	gtk_table_attach(GTK_TABLE(table), _gui->imgaddr, 2, 3, 0, 1,
 					 GTK_SHRINK, GTK_SHRINK, 0, 0);
 
-	_gui->imgport = gtk_image_new_from_stock(GTK_STOCK_STOP, GTK_ICON_SIZE_MENU);
+	_gui->imgport =
+		gtk_image_new_from_stock(GTK_STOCK_STOP, GTK_ICON_SIZE_MENU);
 	gtk_table_attach(GTK_TABLE(table), _gui->imgport, 2, 3, 1, 2,
 					 GTK_SHRINK, GTK_SHRINK, 0, 0);
 
@@ -805,7 +806,7 @@ GtkWidget *gui_winprfs_new(gui_t *_gui)
 
 /* Sets RC values to RC window after it's created ('cause upon window creation
 is too early as we haven't read the RC file yet) */
-int gui_winprfs_set(gui_t *_gui, const prfs_t *_prfs)
+int gui_winprfs_set(gui_t *_gui)
 {
 	int retval = 0; 
 
@@ -814,7 +815,9 @@ int gui_winprfs_set(gui_t *_gui, const prfs_t *_prfs)
 	char port[PRF_MAXLEN] = "";
 
 	/* Set all the values we need */
-	if (prf_get(&_gui->prfs, "addr", addr) < 0) {
+	if (_gui && _gui->addr) {
+		gtk_entry_set_text(GTK_ENTRY(_gui->etyaddr), _gui->addr);
+	} else if (prf_get(&_gui->prfs, "addr", addr) < 0) {
 		retval = -1;
 	} else {
 		gtk_entry_set_text(GTK_ENTRY(_gui->etyaddr), addr);
@@ -1407,7 +1410,7 @@ void *gui_connect(void *_gui)
 			GTK_DIALOG_DESTROY_WITH_PARENT,
 			GTK_MESSAGE_ERROR,
 			GTK_BUTTONS_CLOSE,
-			"The scope seems on the blink.");
+			"Couldn't connect to scope");
 		gtk_widget_show(dialog);
 		g_signal_connect(G_OBJECT(dialog), "response",
 						 G_CALLBACK(cbk_rpsdlg), _gui);
@@ -2023,6 +2026,7 @@ void *gui_loopplot(void *_gui)
 
 		/* Take actions */
 		if (trmd == TRMD_AUTO) {
+			scp_cmd_push(gui->scp, "dtform ascii", NULL, NULL);
 			scp_cmd_push(gui->scp, "wavesrc CH1", NULL, NULL);
 			scp_cmd_push(gui->scp, SCP_DTPOINTS, NULL, NULL);
 			scp_cmd_push(gui->scp, "dtwave?", gui_dtwave, gui);

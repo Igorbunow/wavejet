@@ -162,7 +162,7 @@ typedef struct {
 	prfs_t prfs;
 
 	/* Prefs from command-line args */
-	char addr[16];
+	char *addr;
 	unsigned port;
 
 	/* Prefs Window */
@@ -172,8 +172,6 @@ typedef struct {
 	/* Scope */
 	scp_t *scp;
 } gui_t;
-
-gui_t *gui_new(void);
 
 /* Missing math functions in math.h */
 double round(double x);
@@ -187,7 +185,7 @@ GtkWidget *gui_winplot_new(gui_t *_gui);
 GtkWidget *gui_plot_new(gui_t *_gui);
 
 /* GUI Build */
-gui_t *gui_new(void);
+gui_t *gui_new(char *_addr, unsigned _port);
 void *gui_connect(void *_gui);
 GtkWidget *gui_getmenubar(GtkWidget *window);
 
@@ -210,7 +208,7 @@ void gui_tcpl(int _islast, char *_data, int _len, void *_gui);
 void gui_drawgrid(gui_t *_gui);
 
 /* RC */
-int gui_winprfs_set(gui_t *_gui, const prfs_t *_prfs);
+int gui_winprfs_set(gui_t *_gui);
 
 /* Functions for future (or past) development */
 #ifdef DEV

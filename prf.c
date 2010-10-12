@@ -212,7 +212,7 @@ int prf_read(prfs_t *_prfs)
 	return 0;
 }
 
-/* Cheerfully returns 0 and on success and copies appropriate value to
+/* Cheerfully returns 0 on success and copies appropriate value to
 beforehand-allocated _val, angrily returns -1 on failure */
 int prf_get(const prfs_t *_prfs, const char *_key, char *_val)
 {

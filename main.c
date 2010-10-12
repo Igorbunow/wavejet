@@ -10,6 +10,10 @@ int main(int argc, char *argv[])
 	/* GUI variables */
 	gui_t *gui;
 
+	/* Connection variables */
+	char *addr;
+	unsigned port = 1891;
+
 	/* Other variables */
 	char buf[BUFSIZE];				/* General purpose string buffer */
 
@@ -28,29 +32,30 @@ int main(int argc, char *argv[])
 	printf("%s\n", buf);
 	#endif
 
-	/* Create GUI */
-	gui = gui_new();
-
 	/* Read command-line arguments */
+	addr = (char *) malloc(BUFSIZE);
 	if (argc == 2) {
 		if (strcmp(argv[1], "-h") == 0) {
 			printf("usage: wavejet [addr [port]]\n");
 			exit(0);
 		} else {
-			strncpy(gui->addr, argv[1], 16);
+			strncpy(addr, argv[1], 16);
 		}
 	} else if (argc == 3) {
 		if (argv[1][0] == '-' || argv[2][0] == '-') {
 			printf("usage: wavejet [addr [port]]\n");
 			exit(1);
 		} else {
-			strncpy(gui->addr, argv[1], 16);
-			gui->port = atoi(argv[2]);
+			strncpy(addr, argv[1], 16);
+			port = atoi(argv[2]);
 		}
 	} else if (argc > 3) {
 		printf("usage: wavejet [addr [port]]\n");
 		exit(1);
 	}
+
+	/* Create GUI */
+	gui = gui_new(addr, port);
 
 	/* Connecting thread */
 	pthread_create(&gui->thdconnect, NULL, gui_connect, gui);
