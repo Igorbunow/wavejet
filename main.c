@@ -37,21 +37,21 @@ int main(int argc, char *argv[])
 	if (argc == 2) {
 		if (strcmp(argv[1], "-h") == 0) {
 			printf("usage: wavejet [addr [port]]\n");
-			exit(0);
+			return 0;
 		} else {
 			strncpy(addr, argv[1], 16);
 		}
 	} else if (argc == 3) {
 		if (argv[1][0] == '-' || argv[2][0] == '-') {
 			printf("usage: wavejet [addr [port]]\n");
-			exit(1);
+			return 1;
 		} else {
 			strncpy(addr, argv[1], 16);
 			port = atoi(argv[2]);
 		}
 	} else if (argc > 3) {
 		printf("usage: wavejet [addr [port]]\n");
-		exit(1);
+		return 1;
 	}
 
 	/* Create GUI */

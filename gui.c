@@ -1,4 +1,5 @@
 #include "gui.h"
+#include <gdk/gdkkeysyms.h>	/* Accelerator keys */
  
 /* Trigger/Plot Times */
 #define GUI_TRCK 250000		/* Trigger Check Time in useconds (dft 250000) */
@@ -115,12 +116,16 @@ gui_t *gui_new(char *_addr, unsigned _port)
 /* Returns fully-populated menubar */
 GtkWidget *gui_menubar_new(gui_t *_gui)
 {
+	/* Menu variables */
 	GtkWidget *menubar;
 	GtkWidget *mnufile;
 	GtkWidget *itmfile;
 	GtkWidget *itmprfs;
 	GtkWidget *itmsep;
 	GtkWidget *itmquit;
+
+	/* Accelerator variables */
+	GtkAccelGroup *acc;
 
 	/* Dev Variables */
 	#if DEV
@@ -132,6 +137,10 @@ GtkWidget *gui_menubar_new(gui_t *_gui)
 	GtkWidget *itmdev;
 	GtkWidget *itmacn;
 	#endif
+
+	/* Set up accelerators */
+	acc = gtk_accel_group_new();
+	gtk_window_add_accel_group(GTK_WINDOW(_gui->winmain), acc);
 
 	/* Create new menubar */
 	menubar = gtk_menu_bar_new();
@@ -181,6 +190,8 @@ GtkWidget *gui_menubar_new(gui_t *_gui)
 	gtk_widget_show(itmsep);
 
 	itmquit = gtk_image_menu_item_new_from_stock(GTK_STOCK_QUIT, NULL);
+	gtk_widget_add_accelerator(itmquit, "activate", acc, GDK_q,
+							   GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	g_signal_connect(G_OBJECT(itmquit), "activate",
 					 G_CALLBACK(cbk_quit), _gui);
 	gtk_menu_shell_append(GTK_MENU_SHELL(mnufile), itmquit);
