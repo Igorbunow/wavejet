@@ -35,6 +35,11 @@ typedef struct {
 	int linec;
 } prfs_t;
 
+/* Creates a new preference structure and sets default values if any.
+Returns a pointer to the newly-created structure upon success or NULL
+on trouble */
+prfs_t * prf_new(void);
+
 /* Reads and parses the contents of an RC file and sets the key/value pairs
 found in _prfs).
 
@@ -47,7 +52,7 @@ Things that are lost are:
 - leading spaces (and indentation goes with it)
 - duplicate spaces between key, values and inline comments
 
-Returns 0 on success, -1 on failure.
+Returns 0 on success, 1 on failure.
 */
 int prf_read(prfs_t *_prfs);
 
@@ -57,6 +62,10 @@ will be left out as an empty string. */
 int prf_get(const prfs_t *_prfs, const char *_key, char *_val);
 
 int prf_set(prfs_t *_prfs, const char *_key, const char *_val);
-void prf_write(prfs_t *_prfs);
+int prf_write(prfs_t *_prfs);
+
+/* Destroys a previously-created preference structure. Returns 0 upon
+success, something else otherwise */
+int prf_destroy(prfs_t *prfs);
 
 #endif 

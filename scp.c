@@ -9,19 +9,25 @@
 #define BUNCHSIZE		128		/* Size of a bunch coming from the scope */
 
 /* Connect to scope and returns pointer to it upon success, NULL otherwise */
-scp_t *scp_new(uint16_t _port, const char *_addr)
+scp_t *scp_new(const char *_addr, const char *_port)
 {
-	struct sockaddr_in sockaddr;
+	uint16_t port;
 	scp_t *s;		/* To be returned */
 	int status;		/* Connection status */
 	
 	/* Make room for the scope to return */
 	s = (scp_t *) malloc(sizeof(scp_t));
 
+	/* Atoi port */
+	if (_port) {
+		/* FIXME Use strtol and do some error checking */
+		port = atoi(_port);
+	}
+
 	/* Get socket */
 	s->sockfd = socket(PF_INET, SOCK_STREAM, 0);
 	s->sockaddr.sin_family = AF_INET;
-	s->sockaddr.sin_port = htons(_port);
+	s->sockaddr.sin_port = htons(port);
 	s->sockaddr.sin_addr.s_addr = inet_addr(_addr);
 	memset(s->sockaddr.sin_zero, '\0', sizeof(s->sockaddr.sin_zero));
 
@@ -785,7 +791,7 @@ void *scp_read(void *_scope)
 		}
 
 		/* Get rid of last command */
-		(scp_cmd) scp_cmd_pop(s);
+		scp_cmd_pop(s);
 
 		/* Check if there are any commands left */
 /* 		pthread_mutex_lock(&s->mtxquit);
@@ -803,7 +809,6 @@ double scp_fto125(double _f)
 {
 	char buf[BUFSIZE];
 	int first;
-	int next;
 	int i;
 
 	/* Make string from float */

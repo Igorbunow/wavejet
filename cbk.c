@@ -688,17 +688,6 @@ void cbk_opnwinprfs(GtkMenuItem *_itm, void *_gui)
 	/* Convenient */
 	gui = _gui;
 
-	/* Read RC file */
-	retval = prf_read(&gui->prfs);
-
-	/* Set all the values we need */
-	if (retval == 0) {
-		retval = gui_winprfs_set(gui);
-	}
-	if (retval < 0) {
-		gtk_widget_show(gui->winprfs);
-	}
-
 	gtk_widget_show(gui->winprfs);
 }
 
@@ -736,7 +725,7 @@ void cbk_rspwinprfs(GtkDialog *_dlg, int _rsp, void *_gui)
 			status = -1;
 		} else {
 			gtk_widget_hide(gui->imgaddr);
-			prf_set(&gui->prfs, "addr", val);
+			prf_set(gui->prfs, "addr", val);
 		}
 
 		val = gtk_entry_get_text(GTK_ENTRY(gui->etyport));
@@ -745,12 +734,12 @@ void cbk_rspwinprfs(GtkDialog *_dlg, int _rsp, void *_gui)
 			status = -1;
 		} else {
 			gtk_widget_hide(gui->imgport);
-			prf_set(&gui->prfs, "port", val);
+			prf_set(gui->prfs, "port", val);
 		}
 
 		/* Print new settings to file */
 		if (status == 0) {
-			prf_write(&gui->prfs);
+			prf_write(gui->prfs);
 		} else {
 			return;
 		}

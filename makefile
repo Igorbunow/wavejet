@@ -1,8 +1,9 @@
 LIBS = `pkg-config --libs gtk+-2.0 gthread-2.0` -lpng
-CFLAGS = -Wall -pedantic `pkg-config --cflags gtk+-2.0 gthread-2.0`
+CFLAGS = -Wall -pedantic
+GFLAGS += `pkg-config --cflags gtk+-2.0 gthread-2.0`
 PREFIX = /usr/local
 
-OBJECTS=main.o cbk.o gui.o scp.o numbers.o png.o data.c prf.o
+OBJECTS = main.o cbk.o gui.o scp.o numbers.o png.o data.c prf.o
 
 ifeq ($(origin DEBUG), undefined)
 	DEBUG =
@@ -23,18 +24,18 @@ uninstall:
 	rm -i $(PREFIX)/bin/wavejet
 	rm -i $(PREFIX)/man/man1/wavejet.1
 main.o: main.c cbk.h gui.h scp.h
-	gcc -c $(DEBUG) $(CFLAGS) -o $@ $<
+	gcc -c $(DEBUG) $(GFLAGS) -o $@ $<
 cbk.o: cbk.c cbk.h
-	gcc -c $(DEBUG) $(CFLAGS) -o $@ $<
+	gcc -c $(DEBUG) $(GFLAGS) -o $@ $<
 gui.o: gui.c gui.h
-	gcc -c $(DEBUG) $(CFLAGS) -o $@ $<
+	gcc -c $(DEBUG) $(GFLAGS) -o $@ $<
 png.o: png.c png.h
-	gcc -c $(DEBUG) $(CFLAGS) -o $@ $<
+	gcc -c $(DEBUG) $(GFLAGS) -o $@ $<
 scp.o: scp.c scp.h
-	gcc -c $(DEBUG) -o $@ $<
+	gcc -c $(DEBUG) $(CFLAGS) -o $@ $<
 numbers.o: numbers.c numbers.h
 	gcc -c $(DEBUG) -o $@ $<
 prf.o: prf.c prf.h
-	gcc -c $(DEBUG) -o $@ $<
+	gcc -c $(DEBUG) $(CFLAGS) -o $@ $<
 clean:
 	rm -f *.o wavejet

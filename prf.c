@@ -1,7 +1,27 @@
 #include "prf.h"
-
 #include <string.h>
+
 #define BUFSIZE 1024
+#define PORT "1861"
+
+prfs_t * prf_new(void)
+{
+	int rc;
+	prfs_t *prfs;
+
+	prfs = malloc(sizeof(prfs_t));
+
+	prfs->prfc = 0;
+	prfs->cmtc = 0;
+	prfs->linec = 0;
+
+	rc = prf_set(prfs, "port", PORT);
+	if (rc != 0) {
+		return NULL;
+	}
+
+	return prfs;
+}
 
 int prf_read(prfs_t *_prfs)
 {
@@ -24,22 +44,21 @@ int prf_read(prfs_t *_prfs)
 	FILE *fp;
 	int readc;
 
-	/* Init values */
-	_prfs->prfc = 0;
-	_prfs->cmtc = 0;
-	_prfs->linec = 0;
+	if (!_prfs) {
+		return 1;
+	}
 
 	/* Compute path */
 	home = getenv("HOME");
 	if (!home) {
-		return -1;
+		return 1;
 	}
 	snprintf(path, PRF_PATHLEN, "%s/%s", home, PRF_FILE);
 
 	/* Open, read and close file */
 	fp = fopen(path, "r");
 	if (!fp) {
-		return -1;
+		return 1;
 	}
 	readc = fread(body, 1, PRF_LEN, fp);
 	fclose(fp);
@@ -106,15 +125,13 @@ int prf_read(prfs_t *_prfs)
 					/* Tie up string */
 					key[key_i] = 0;
 
-					/* To struct */
-					strncpy(_prfs->prfs[_prfs->prfc].key, key, PRF_MAXLEN);
-
 					i++;
 				} else if (body[i] == '\n') {
 					state = LINE;
 					key[key_i] = 0;
 					#if DEBUG
-					printf("Syntax error in config file, line %d: ", _prfs->linec);
+					printf("Syntax error in config file, line %d: ",
+						   _prfs->linec);
 					printf("Missing value for key %s\n", key);
 					#endif
 
@@ -125,7 +142,8 @@ int prf_read(prfs_t *_prfs)
 					key[key_i] = 0;
 
 					#if DEBUG
-					printf("Syntax error in config file, line %d: ", _prfs->linec);
+					printf("Syntax error in config file, line %d: ",
+						   _prfs->linec);
 					printf("Missing value for key %s\n", key);
 					#endif
 				} else {
@@ -141,7 +159,8 @@ int prf_read(prfs_t *_prfs)
 					state = LINE;
 
 					#if DEBUG
-					printf("Syntax error in config file, line %d: ", _prfs->linec);
+					printf("Syntax error in config file, line %d: ",
+						   _prfs->linec);
 					printf("Missing value for key %s\n", key);
 					#endif
 
@@ -150,7 +169,8 @@ int prf_read(prfs_t *_prfs)
 				} else if (body[i] == '#') {
 					state = COMMENT;
 					#if DEBUG
-					printf("Syntax error in config file, line %d: ", _prfs->linec);
+					printf("Syntax error in config file, line %d: ",
+						   _prfs->linec);
 					printf("Missing value for key %s\n", key);
 					#endif
 					i++;
@@ -166,21 +186,16 @@ int prf_read(prfs_t *_prfs)
 					val[val_i] = 0;
 
 					/* To struct */
-					strncpy(_prfs->prfs[_prfs->prfc].val, val, PRF_MAXLEN);
-					_prfs->prfs[_prfs->prfc].lineno = _prfs->linec;
-					_prfs->prfc++;
+					prf_set(_prfs, key, val);
 
 					i++;
-					_prfs->linec++;
 				} else if (body[i] == '#') {
 					state = COMMENT;
 					val[val_i] = 0;
 					i++;
 
 					/* To struct */
-					strncpy(_prfs->prfs[_prfs->prfc].val, val, PRF_MAXLEN);
-					_prfs->prfs[_prfs->prfc].lineno = _prfs->linec;
-					_prfs->prfc++;
+					prf_set(_prfs, key, val);
 				} else if (body[i] == ' ' || body[i] == '\t') {
 					state = PV;
 					i++;
@@ -213,10 +228,14 @@ int prf_read(prfs_t *_prfs)
 }
 
 /* Cheerfully returns 0 on success and copies appropriate value to
-beforehand-allocated _val, angrily returns -1 on failure */
+beforehand-allocated _val, angrily returns 1 on failure */
 int prf_get(const prfs_t *_prfs, const char *_key, char *_val)
 {
 	int i;
+
+	if (!_prfs) {
+		return 1;
+	}
 
 	/* Look for key and set value */ 
 	for (i = 0; i < _prfs->prfc; i++) {
@@ -226,20 +245,24 @@ int prf_get(const prfs_t *_prfs, const char *_key, char *_val)
 		}
 	}
 
-	return -1;
+	return 1;
 }
 
 /* Sets value given passed key. Adds the pair if the key's not found.
-Returns -1 on failure (i.e. not space left), 0 otherwise. */
+Returns 1 on failure (i.e. not space left), 0 otherwise. */
 int prf_set(prfs_t *_prfs, const char *_key, const char *_val)
 {
 	int i;
+
+	if (!_prfs) {
+		return 1;
+	}
 
 	/* Look for an existing key */
 	for (i = 0; i < _prfs->prfc; i++) {
 		if (strcmp(_key, _prfs->prfs[i].key) == 0) {
 			strcpy(_prfs->prfs[i].val, _val);
-			return;
+			return 0;
 		}
 	}
 
@@ -251,22 +274,31 @@ int prf_set(prfs_t *_prfs, const char *_key, const char *_val)
 		_prfs->prfc++;
 		_prfs->linec++;
 	} else {
-		return -1;
+		return 1;
 	}
+
+	return 0;
 }
 
-void prf_write(prfs_t *_prfs)
+int prf_write(prfs_t *_prfs)
 {
 	int lineno = 0, prf_i = 0, cmt_i = 0;
 	FILE *fp;
 	char buf[BUFSIZE];
 
+	if (!_prfs) {
+		return 1;
+	}
+
 	snprintf(buf, BUFSIZE, "%s/.wavejetrc", getenv("HOME"));
 	fp = fopen(buf, "w");
+	if (!fp) {
+		return 1;
+	}
 
 	while (prf_i < _prfs->prfc || cmt_i < _prfs->cmtc) {
 		if (prf_i < _prfs->prfc && _prfs->prfs[prf_i].lineno == lineno) {
-			fprintf(fp, "%s %s ",
+			fprintf(fp, "%s %s",
 					_prfs->prfs[prf_i].key,
 					_prfs->prfs[prf_i].val);
 			prf_i++;
@@ -279,6 +311,17 @@ void prf_write(prfs_t *_prfs)
 		lineno++;
 	}
 	fclose(fp);
+
+	return 0;
+}
+
+int prf_destroy(prfs_t *_prfs)
+{
+	if (_prfs) {
+		free(_prfs);
+		return 0;
+	}
+	return 1;
 }
 
 #if 0

@@ -37,10 +37,11 @@ char g_strtcpls[GUI_TCPLC][GUI_UNIT_STRLEN] = {
 	"AC" , "DC" , "HF" , "LF"
 };
 
-gui_t *gui_new(char *_addr, unsigned _port)
+gui_t *gui_new(char *_addr, char *_port)
 {	
+	int rc;
 	gui_t *gui;
-	int retval;
+	char foo[PRF_LEN];
 
 	/* Create structure */
 	gui = malloc(sizeof(gui_t));
@@ -48,10 +49,6 @@ gui_t *gui_new(char *_addr, unsigned _port)
 	/* Init a few values (not sure they're all needed) */
 	gui->scp = NULL;
 	gui->cbklocked = 0;
-
-	/* Init command-line args */
-	gui->addr = _addr;
-	gui->port = _port;
 
 	/* Visual, for the images we'll draw later on */
 	gui->visual = gdk_visual_get_system();
@@ -73,16 +70,26 @@ gui_t *gui_new(char *_addr, unsigned _port)
 	gtk_widget_hide(gui->wininfo);
 	#endif
 
-	/* Make prefs window */
+	/* Make pref window */
 	gui->winprfs = gui_winprfs_new(gui);
 
-	/* Read RC file (should you fail, open the RC win & spank the usr) */
-	retval = prf_read(&gui->prfs);
+	/* Create preferences (setting default parameters) */
+	gui->prfs = prf_new();
 
-	/* Set all the values we need */
-	if (retval == 0 || gui->addr) {
-		retval = gui_winprfs_set(gui);
-	} else {
+	/* Read RC file */
+	(int) prf_read(gui->prfs);
+
+	/* Set parameters from runtime arguments */
+	if (_addr) {
+		prf_set(gui->prfs, "addr", _addr);
+		if (_port) {
+			prf_set(gui->prfs, "port", _port);
+		}
+	}
+
+	/* Possibly preference window */
+	rc = gui_winprfs_set(gui, gui->prfs);
+	if (rc != 0) {
 		gtk_widget_show(gui->winprfs);
 	}
 
@@ -817,30 +824,26 @@ GtkWidget *gui_winprfs_new(gui_t *_gui)
 
 /* Sets RC values to RC window after it's created ('cause upon window creation
 is too early as we haven't read the RC file yet) */
-int gui_winprfs_set(gui_t *_gui)
+int gui_winprfs_set(gui_t *_gui, prfs_t *_prfs)
 {
-	int retval = 0; 
+	int rc = 0;
 
 	/* RC Variables */
 	char addr[PRF_MAXLEN] = "";
 	char port[PRF_MAXLEN] = "";
 
-	/* Set all the values we need */
-	if (_gui && _gui->addr) {
-		gtk_entry_set_text(GTK_ENTRY(_gui->etyaddr), _gui->addr);
-	} else if (prf_get(&_gui->prfs, "addr", addr) < 0) {
-		retval = -1;
-	} else {
+	if (_gui && _prfs) {
+		rc |= prf_get(_prfs, "addr", addr);
+		printf("%s\n", addr);
 		gtk_entry_set_text(GTK_ENTRY(_gui->etyaddr), addr);
 	}
 
-	if (prf_get(&_gui->prfs, "port", port) < 0) {
-		retval = -1;
-	} else {
+	if (_gui && _prfs) {
+		rc |= prf_get(_prfs, "port", port);
 		gtk_entry_set_text(GTK_ENTRY(_gui->etyport), port);
 	}
 
-	return retval;
+	return rc;
 }
 
 GtkWidget *gui_winplot_new(gui_t *_gui)
@@ -1324,11 +1327,12 @@ void gui_tcpl(int _islast, char *_data, int _len, void *_gui)
 void *gui_connect(void *_gui)
 {
 	int i;
+	int rc;
 	scp_t *scp;
 	gui_t *gui;
 	char buf[SMLBUFSIZE];
-	char straddr[16], strport[16];
-	unsigned port;
+	char addr[PRF_LEN];
+	char port[PRF_LEN];
 
 	/* Gtk Variables */
 	GtkWidget *dialog;
@@ -1345,18 +1349,14 @@ void *gui_connect(void *_gui)
 	gdk_threads_leave();
 
 	/* Connect to scope, giving runtime-precedence to command-line prefs */
-	if (gui->addr[0] != 0) {
-		strncpy(straddr, gui->addr, 16);
-	} else {
-		prf_get(&gui->prfs, "addr", straddr);
+	rc = prf_get(gui->prfs, "addr", addr);
+	if (rc != 0) {
+		/* No point in going any further */
+		return NULL;
 	}
-	if (gui->port != -1) {
-		port = gui->port;
-	} else {
-		prf_get(&gui->prfs, "port", strport);
-		port = atoi(strport);
-	}
-	scp = scp_new(port, straddr);
+	prf_get(gui->prfs, "port", port);
+
+	scp = scp_new(addr, port);
 
 	/* Take actions if successful */
 	if (scp) {
@@ -1432,6 +1432,7 @@ void *gui_connect(void *_gui)
 		gdk_threads_leave();
 	}
 
+	/* FIXME It's never picked up anyway, is it? */
 	return scp;
 }
 

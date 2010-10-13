@@ -59,7 +59,7 @@ typedef struct {
  * The scope panel is not locked at this time but it will be as
  * soon as you submit a command.
  */
-scp_t *scp_new(uint16_t _port, const char *_addr);
+scp_t *scp_new(const char *_addr, const char *_port);
 
 /* Command queue functions */
 void scp_cmd_push(scp_t *_scope,

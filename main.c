@@ -5,14 +5,19 @@
 
 #define BUFSIZE 128
 
+void usage(void)
+{
+	printf("usage: wavejet [addr [port]]\n");
+}
+
 int main(int argc, char *argv[])
 {
 	/* GUI variables */
 	gui_t *gui;
 
 	/* Connection variables */
-	char *addr;
-	unsigned port = 1891;
+	char *addr = NULL;
+	char *port = NULL;
 
 	/* Other variables */
 	char buf[BUFSIZE];				/* General purpose string buffer */
@@ -33,24 +38,23 @@ int main(int argc, char *argv[])
 	#endif
 
 	/* Read command-line arguments */
-	addr = (char *) malloc(BUFSIZE);
 	if (argc == 2) {
 		if (strcmp(argv[1], "-h") == 0) {
-			printf("usage: wavejet [addr [port]]\n");
+			usage();
 			return 0;
 		} else {
-			strncpy(addr, argv[1], 16);
+			addr = argv[1];
 		}
 	} else if (argc == 3) {
 		if (argv[1][0] == '-' || argv[2][0] == '-') {
-			printf("usage: wavejet [addr [port]]\n");
+			usage();
 			return 1;
 		} else {
-			strncpy(addr, argv[1], 16);
-			port = atoi(argv[2]);
+			addr = argv[1];
+			port = argv[2];
 		}
 	} else if (argc > 3) {
-		printf("usage: wavejet [addr [port]]\n");
+		usage();
 		return 1;
 	}
 
