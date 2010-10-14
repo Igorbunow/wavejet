@@ -5,11 +5,7 @@
 #include <stdlib.h>
 #include <string.h>     /* memset				*/
 #include <unistd.h>     /* close, read, write	*/
-#include <fcntl.h>		/* O_NONBLOCK			*/
-#include <sys/types.h>  /* connect				*/
-#include <sys/socket.h> /* inet_addr, connect	*/
-#include <netinet/in.h> /* htons				*/
-#include <arpa/inet.h>  /* inet_addr			*/
+#include <netdb.h>
 #include <pthread.h>
 #include <assert.h>
 #include "numbers.h"

@@ -757,6 +757,7 @@ GtkWidget *gui_winprfs_new(gui_t *_gui)
 	GtkWidget *table;
 	GtkWidget *lbladdr, *lblport;
 	char buf[SMLBUFSIZE];	/* GP Buffer */
+	GtkTooltips *tooltips;
 
 	/* Window */
 	snprintf(buf, SMLBUFSIZE, "%s - Preferences", GUI_TITLE);
@@ -776,7 +777,7 @@ GtkWidget *gui_winprfs_new(gui_t *_gui)
 	/* Labels */
 	lbladdr = gtk_label_new("");
 	gtk_label_set_markup(GTK_LABEL(lbladdr),
-						 "<span weight='bold'>Scope IP Address</span>");
+						 "<span weight='bold'>Scope Address</span>");
 	gtk_misc_set_alignment(GTK_MISC(lbladdr), 1, .5);
 	gtk_table_attach(GTK_TABLE(table), lbladdr, 0, 1, 0, 1,
 					 GTK_FILL, GTK_FILL, 0, 0);
@@ -791,14 +792,21 @@ GtkWidget *gui_winprfs_new(gui_t *_gui)
 	gtk_widget_show(lblport);
 
 	/* Entries */
+	tooltips = gtk_tooltips_new();
 	_gui->etyaddr = gtk_entry_new();
 	gtk_table_attach(GTK_TABLE(table), _gui->etyaddr, 1, 2, 0, 1,
 					 GTK_FILL, GTK_FILL, 0, 0);
+	gtk_tooltips_set_tip(tooltips, _gui->etyaddr,
+						 "Scope hostname or IP address",
+						 "Scope hostname or IP address");
 	gtk_widget_show(_gui->etyaddr);
 
 	_gui->etyport = gtk_entry_new();
 	gtk_table_attach(GTK_TABLE(table), _gui->etyport, 1, 2, 1, 2,
 					 GTK_FILL, GTK_FILL, 0, 0);
+	gtk_tooltips_set_tip(tooltips, _gui->etyport,
+						 "Scope port (usually 1861)",
+						 "Scope port (usually 1861)");
 	gtk_widget_show(_gui->etyport);
 
 	/* Error Icons */
@@ -834,7 +842,6 @@ int gui_winprfs_set(gui_t *_gui, prfs_t *_prfs)
 
 	if (_gui && _prfs) {
 		rc |= prf_get(_prfs, "addr", addr);
-		printf("%s\n", addr);
 		gtk_entry_set_text(GTK_ENTRY(_gui->etyaddr), addr);
 	}
 

@@ -11,25 +11,44 @@
 /* Connect to scope and returns pointer to it upon success, NULL otherwise */
 scp_t *scp_new(const char *_addr, const char *_port)
 {
-	uint16_t port;
+	int rc;
+	struct addrinfo hints;
+	struct addrinfo *info;
 	scp_t *s;		/* To be returned */
-	int status;		/* Connection status */
 	
 	/* Make room for the scope to return */
 	s = (scp_t *) malloc(sizeof(scp_t));
 
-	/* Atoi port */
-	if (_port) {
-		/* FIXME Use strtol and do some error checking */
-		port = atoi(_port);
+	/* Get address info */
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	if ((rc = getaddrinfo(_addr, _port, &hints, &info)) != 0) {
+		#if DEBUG
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rc));
+		#endif
+		return NULL;
 	}
 
 	/* Get socket */
-	s->sockfd = socket(PF_INET, SOCK_STREAM, 0);
-	s->sockaddr.sin_family = AF_INET;
-	s->sockaddr.sin_port = htons(port);
-	s->sockaddr.sin_addr.s_addr = inet_addr(_addr);
-	memset(s->sockaddr.sin_zero, '\0', sizeof(s->sockaddr.sin_zero));
+	s->sockfd = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+	if (s->sockfd == -1) {
+		#if DEBUG
+		fprintf(stderr, "socket: %s\n", strerror(errno));
+		#endif
+		return NULL;
+	}
+
+	/* Connect */
+	rc = connect(s->sockfd, info->ai_addr, info->ai_addrlen);
+	if (rc == -1) {
+		#if DEBUG
+		fprintf(stderr, "connect: %s\n", strerror(errno));
+		#endif
+	}
+
+	/* Clean up */
+	freeaddrinfo(info);
 
 	/* Mux stuff to play with timeout */
 	FD_ZERO(&s->fds);
@@ -37,13 +56,8 @@ scp_t *scp_new(const char *_addr, const char *_port)
 	s->tmt.tv_sec = SCP_TMT;
 	s->tmt.tv_usec = 0;
 
-	/* Connect */
-	status = connect(s->sockfd,
-					 (struct sockaddr *) &s->sockaddr,
-					 sizeof(struct sockaddr_in));
-
 	/* Check status and return */
-	if (status == 0) {
+	if (rc == 0) {
 		/* Initialize mutex */
 		pthread_mutex_init(&s->mutex, NULL);
 
