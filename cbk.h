@@ -18,6 +18,7 @@ gboolean cbk_btnrlsofst(GtkWidget *_arw, GdkEventButton *_evt, void *_data);
 
 /* Menu Actions */
 void cbk_connect(GtkMenuItem *_itm, void *_gui);
+void cbk_disconnect(GtkMenuItem *_itm, void *_gui);
 void cbk_opnwinprfs(GtkMenuItem *_itm, void *_gui);
 
 /* Dialog Responses */

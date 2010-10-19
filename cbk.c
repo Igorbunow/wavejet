@@ -662,6 +662,16 @@ void cbk_connect(GtkMenuItem *_itm, void *_gui)
 	pthread_create(&gui->thdconnect, NULL, gui_connect, gui);
 }
 
+void cbk_disconnect(GtkMenuItem *_itm, void *_gui)
+{
+	int rc;
+
+	rc = gui_disconnect((gui_t *) _gui);
+	if (rc != 0) {
+		fprintf(stderr, "Couldn't disconnect\n");
+	}
+}
+
 /* Dialogs */
 /* Upon on-the-blink-scope error dialog dismissal */
 void cbk_rpsdlg(GtkDialog *_dlg, int _arg1, void *_gui)
@@ -679,16 +689,10 @@ void cbk_rpsdlg(GtkDialog *_dlg, int _arg1, void *_gui)
 
 /* Upon window creation */
 
-/* Re-read RC file and opens prefs window */
+/* Opens prefs window */
 void cbk_opnwinprfs(GtkMenuItem *_itm, void *_gui)
 {
-	gui_t *gui;
-	int retval;
-
-	/* Convenient */
-	gui = _gui;
-
-	gtk_widget_show(gui->winprfs);
+	gtk_widget_show(((gui_t *) _gui)->winprfs);
 }
 
 /* Upon window deletion */
@@ -713,6 +717,7 @@ void cbk_rspwinprfs(GtkDialog *_dlg, int _rsp, void *_gui)
 	gui_t *gui;
 	const char *val; /* GP Value */
 	int status = 0;	/* Error status */
+	int rc;
 
 	/* Convenient */
 	gui = _gui;
@@ -743,6 +748,32 @@ void cbk_rspwinprfs(GtkDialog *_dlg, int _rsp, void *_gui)
 		} else {
 			return;
 		}
+	} else if (_rsp == GTK_RESPONSE_OK) {
+		/* FIXME Duplicate from above -- Please refactor */
+		val = gtk_entry_get_text(GTK_ENTRY(gui->etyaddr));
+		if (val[0] == 0) {
+			gtk_widget_show(gui->imgaddr);
+			status = -1;
+		} else {
+			gtk_widget_hide(gui->imgaddr);
+			prf_set(gui->prfs, "addr", val);
+		}
+
+		val = gtk_entry_get_text(GTK_ENTRY(gui->etyport));
+		if (val[0] == 0) {
+			gtk_widget_show(gui->imgport);
+			status = -1;
+		} else {
+			gtk_widget_hide(gui->imgport);
+			prf_set(gui->prfs, "port", val);
+		}
+
+		rc = gui_disconnect(gui);
+		if (rc) {
+			printf("Couldn't disconnect\n");
+			return;
+		}
+		pthread_create(&gui->thdconnect, NULL, gui_connect, gui);
 	}
 
 	/* Hide window */

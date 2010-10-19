@@ -1,5 +1,9 @@
-#include "gui.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>     /* memset */
 #include <gdk/gdkkeysyms.h>	/* Accelerator keys */
+#include "gui.h"
  
 /* Trigger/Plot Times */
 #define GUI_TRCK 250000		/* Trigger Check Time in useconds (dft 250000) */
@@ -41,7 +45,6 @@ gui_t *gui_new(char *_addr, char *_port)
 {	
 	int rc;
 	gui_t *gui;
-	char foo[PRF_LEN];
 
 	/* Create structure */
 	gui = malloc(sizeof(gui_t));
@@ -87,7 +90,7 @@ gui_t *gui_new(char *_addr, char *_port)
 		}
 	}
 
-	/* Possibly preference window */
+	/* Possibly open preference window */
 	rc = gui_winprfs_set(gui, gui->prfs);
 	if (rc != 0) {
 		gtk_widget_show(gui->winprfs);
@@ -185,6 +188,12 @@ GtkWidget *gui_menubar_new(gui_t *_gui)
 					 G_CALLBACK(cbk_connect), _gui);
 	gtk_menu_shell_append(GTK_MENU_SHELL(mnufile), _gui->itmconnect);
 	gtk_widget_show(_gui->itmconnect);
+
+	_gui->itmdisconnect = gtk_menu_item_new_with_label(LBLDISCONNECT);
+	g_signal_connect(G_OBJECT(_gui->itmdisconnect), "activate",
+					 G_CALLBACK(cbk_disconnect), _gui);
+	gtk_menu_shell_append(GTK_MENU_SHELL(mnufile), _gui->itmdisconnect);
+	gtk_widget_show(_gui->itmdisconnect);
 
 	itmprfs = gtk_image_menu_item_new_from_stock(GTK_STOCK_PREFERENCES, NULL);
 	g_signal_connect(G_OBJECT(itmprfs), "activate",
@@ -766,6 +775,7 @@ GtkWidget *gui_winprfs_new(gui_t *_gui)
 									GTK_WINDOW(_gui->winmain),
 									0,
 									GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,
+									GTK_STOCK_OK, GTK_RESPONSE_OK,
 									GTK_STOCK_CANCEL, GTK_RESPONSE_REJECT,
 									NULL);
 
@@ -1359,6 +1369,12 @@ void *gui_connect(void *_gui)
 	rc = prf_get(gui->prfs, "addr", addr);
 	if (rc != 0) {
 		/* No point in going any further */
+		gdk_threads_enter();
+		gtk_statusbar_push(GTK_STATUSBAR(gui->statusbar),
+						   gui->ctxid,
+						   GUI_DESC_FAILURE);
+		gdk_flush();
+		gdk_threads_leave();
 		return NULL;
 	}
 	prf_get(gui->prfs, "port", port);
@@ -1372,6 +1388,7 @@ void *gui_connect(void *_gui)
 		gtk_statusbar_push(GTK_STATUSBAR(gui->statusbar), gui->ctxid,
 						   GUI_DESC_ONLINE);
 		gtk_widget_set_sensitive(gui->itmconnect, FALSE);
+		gtk_widget_set_sensitive(gui->itmdisconnect, TRUE);
 		gdk_flush();
 		gdk_threads_leave();
 		/* Tell GUI we have a scope */
@@ -1379,12 +1396,10 @@ void *gui_connect(void *_gui)
 		for (i = 0; i < SCP_CHC; i++) {
 			gui->chls[i].scp = scp;
 		}
-		/* Start reading thread */
-		pthread_create(&gui->thdread, NULL, scp_read, gui->scp);
 		/* Start plotting thread */
 		pthread_mutex_init(&gui->mtxloopplot, NULL);
 		pthread_cond_init(&gui->cndloopplot, NULL);
-		gui->loopkill = 0;
+		gui->plotkill = 0;
 		pthread_create(&gui->thdloopplot, NULL, gui_loopplot, gui);
 		/* Feed GUI with various scope values */
 		scp_cmd_push(scp, "tdiv?", gui_tdiv, gui);
@@ -1417,6 +1432,7 @@ void *gui_connect(void *_gui)
 		gdk_threads_enter();
 		gtk_widget_set_sensitive(gui->controls, TRUE);
 		gtk_widget_set_sensitive(gui->scltlvl, TRUE);
+		/* FIXME What does this do? */
 		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(gui->rdonormal), TRUE);
 		gdk_flush();
 		gdk_threads_leave();
@@ -1443,34 +1459,65 @@ void *gui_connect(void *_gui)
 	return scp;
 }
 
-#if DEV
-void gui_disconnect(gui_t *_gui)
+int gui_disconnect(gui_t *_gui)
 {
-	GtkWidget *lblconnect;
+	int rc;
+/* 	GtkWidget *lblconnect; */
+
+	/* Quit plotting thread */
+	_gui->plotkill = 1;
+	rc = pthread_mutex_lock(&_gui->mtxloopplot);
+	pthread_cond_signal(&_gui->cndloopplot);
+	pthread_mutex_unlock(&_gui->mtxloopplot);
+
+	rc = pthread_join(_gui->thdloopplot, NULL);
+	if (rc != 0) {
+		/* Already joined */
+		return 0;
+	}
+
+/* 	rc = pthread_cond_destroy(&_gui->cndloopplot);
+	if (rc != 0) {
+		fprintf(stderr, "Couldn't destroy condition on plot loop\n");
+		return 1;
+	} */
+
+/* 	rc = pthread_mutex_destroy(&_gui->mtxloopplot);
+	if (rc != 0) {
+		fprintf(stderr, "Couldn't destroy mutex on plot loop: %s\n",
+				strerror(rc));
+		return 1;
+	} */
+
+	/* Quit scope reading thread */
+	gdk_threads_leave();
+	rc = scp_destroy(_gui->scp);
+	gdk_threads_enter();
+	if (rc) {
+		fprintf(stderr, "Couldn't destroy scope\n");
+		return 1;
+	}
 
 	/* Update GUI */
-	gtk_widget_set_sensitive(_gui->controls, FALSE);
 	gtk_widget_set_sensitive(_gui->scltlvl, FALSE);
-	gtk_widget_set_sensitive(_gui->evtboxplot, FALSE);
-
+	gtk_widget_set_sensitive(_gui->controls, FALSE);
+	gtk_widget_set_sensitive(_gui->itmconnect, TRUE);
+	gtk_widget_set_sensitive(_gui->itmdisconnect, FALSE);
 	gtk_statusbar_push(GTK_STATUSBAR(_gui->statusbar),
 					   _gui->ctxid,
 					   GUI_DESC_OFFLINE);
+
+/* 	gtk_widget_set_sensitive(_gui->evtboxplot, FALSE); */
+
+	#if 0
 	lblconnect = gtk_bin_get_child(GTK_BIN(_gui->itmconnect));
 	gtk_label_set_text(GTK_LABEL(lblconnect), LBLCONNECT);
+	#endif
 
-	/* Safely stop plotting thread */
-	_gui->loopkill = 1;
-	pthread_join(_gui->thdloopplot, NULL);
-
-	/* Safely stop reading thread */
-	pthread_join(_gui->thdread, NULL);
-
-	/* Disconnect from scope */
-/* 	scp_destroy(_gui->scp); */
-
+	return 0;
 }
 
+#if DEV
 void gui_readpng(png_structp _pngptr, png_bytep _data, png_size_t _len)
 {
 	void **datainfo;
@@ -2029,7 +2076,7 @@ void *gui_loopplot(void *_gui)
 	rdosingle = GTK_RADIO_BUTTON(gui->rdosingle);
 	rdostop = GTK_RADIO_BUTTON(gui->rdostop);
 
-	while (!gui->loopkill) {
+	while (!gui->plotkill) {
 		/* Check trmd */
 		gdk_threads_enter();
 		if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(rdoauto))) {

@@ -1,15 +1,7 @@
 #ifndef WJ_SCP
 #define WJ_SCP
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>     /* memset				*/
-#include <unistd.h>     /* close, read, write	*/
 #include <netdb.h>
-#include <pthread.h>
-#include <assert.h>
-#include "numbers.h"
-#include "scp.h"
 
 #define SCP_TMT 10	/* Timeout in seconds */
 
@@ -31,7 +23,9 @@ typedef struct {
 	struct sockaddr_in sockaddr;
 	fd_set fds;	/* Socket set for use with select */
 	struct timeval tmt;
+	int readkill;
 
+	pthread_t thdread;
 	pthread_mutex_t mutex;
 	pthread_mutex_t mtxquit;
 	pthread_cond_t cndquit;
@@ -65,7 +59,7 @@ void scp_cmd_push(scp_t *_scope,
 scp_cmd scp_cmd_pop(scp_t *_scope);
 
 /* Remove a scope connection */
-void scp_destroy(scp_t *_scope);
+int scp_destroy(scp_t *_scope);
 
 /* Send a query and ask for confirmation */
 void scp_query(scp_t *_scope, const char *_command);

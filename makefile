@@ -1,6 +1,6 @@
 LIBS = `pkg-config --libs gtk+-2.0 gthread-2.0` -lpng
 CFLAGS = -Wall -pedantic
-GFLAGS += `pkg-config --cflags gtk+-2.0 gthread-2.0`
+GFLAGS = $(CFLAGS) `pkg-config --cflags gtk+-2.0 gthread-2.0`
 PREFIX = /usr/local
 
 OBJECTS = main.o cbk.o gui.o scp.o numbers.o png.o data.c prf.o

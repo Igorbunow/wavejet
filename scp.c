@@ -1,3 +1,11 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <string.h>     /* memset				*/
+#include <unistd.h>     /* close, read, write	*/
+#include <pthread.h>
+#include <assert.h>
+#include "numbers.h"
 #include "scp.h"
 
 #define HDR_DATAFLAG	0x80
@@ -73,6 +81,12 @@ scp_t *scp_new(const char *_addr, const char *_port)
 		s->cmdc = 0;
 		s->cmd_first = NULL;
 		s->cmd_last = NULL;
+
+		/* Get ready for reading thread */
+		s->readkill = 0;
+
+		/* Start reading thread */
+		pthread_create(&s->thdread, NULL, scp_read, s);
 
 		return s;
 	}
@@ -223,14 +237,47 @@ scp_cmd *scp_cmd_get(scp_t *_scope)
 }
 
 /* To be called when you're done with the scope */
-void scp_destroy(scp_t *_scope)
+int scp_destroy(scp_t *_scope)
 {
+	int rc;
+
 	if (_scope != NULL) {
+		_scope->readkill = 1;
+		rc = pthread_mutex_lock(&_scope->mtxread);
+		pthread_cond_signal(&_scope->cndread);
+		pthread_mutex_unlock(&_scope->mtxread);
+
+		rc = pthread_join(_scope->thdread, NULL);
+		if (rc) {
+		/* Already joined */
+			return 0;
+		}
+
+/* 		rc = pthread_cond_destroy(&_scope->cndread);
+		if (rc != 0) {
+			fprintf(stderr, "Couldn't destroy condition on read thread\n");
+			return 1;
+		} */
+
+/* 		rc = pthread_mutex_destroy(&_scope->mtxread);
+		if (rc != 0) {
+			fprintf(stderr, "Couldn't destroy mutex on read thread: %s\n",
+					 strerror(rc));
+			return 1;
+		} */
+
+		/* FIXME What are these quit mutices and conditions? Shall we destroy
+		these too? */
+
+		/* FIXME There's one 'mutex'. To be destroyed? */
+
 		close(_scope->sockfd);
-/* 		pthread_mutex_destroy(&g_mutex); */
-		pthread_mutex_destroy(&_scope->mutex);
 		free(_scope);
+
+		return 0;
 	}
+
+	return 1;
 }
 
 #if DEV
@@ -713,11 +760,11 @@ void scp_settrdl(scp_t *_scope, const char *_dl)
 void *scp_read(void *_scope)
 {
 	/* Header variables */
-	header h;				/* Working header */
-	int rdc = 0;			/* Read character count */
+	header h;						/* Working header */
+	int rdc = 0;					/* Read character count */
 	/* Data variables */
 	char strdata[BUNCHSIZE] = "";	/* Byte-wise data buffer */
-	int islast;					/* Is last bunch flag */
+	int islast;						/* Is last bunch flag */
 	/* Other variables */
 	scp_cmd *cmd;
 	scp_t *s;
@@ -727,7 +774,7 @@ void *scp_read(void *_scope)
 	/* Convenient */
 	s = (scp_t *) _scope;
 
-	while (1) {
+	while (!s->readkill) {
 		/* Wait if no command left */
 		pthread_mutex_lock(&s->mtxread);
 		if (s->cmdc < 1) {
@@ -738,11 +785,15 @@ void *scp_read(void *_scope)
 		/* Get next command */
 		lost = 0;	/* New hope */
 		cmd = scp_cmd_get(s);
+		if (!cmd) {
+			continue;
+		}
 
 		/* Write command to scope */
 		scp_query(s, cmd->query);
 
 		/* If command expects answer... */
+		/* FIXME Something is preventing disconnection over here... */
 		if (cmd->hdlr != NULL) {
 			islast = 0;
 			while (!islast) {
@@ -793,6 +844,7 @@ void *scp_read(void *_scope)
 				} else {
 					islast = 0;
 				}
+				/* FIXME Blocking after this point */
 
 				/* Call handler to take care of this data */
 				if (lost) {
@@ -817,6 +869,7 @@ void *scp_read(void *_scope)
 		}
 		pthread_mutex_unlock(&s->mtxquit); */
 	}
+	return NULL;
 }
 
 double scp_fto125(double _f)

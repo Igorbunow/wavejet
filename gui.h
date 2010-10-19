@@ -1,9 +1,6 @@
 #ifndef WJ_GUI
 #define WJ_GUI
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>     /* memset */
 #include <gtk/gtk.h>
 #include <pthread.h>
 
@@ -67,12 +64,11 @@ typedef struct {
 
 typedef struct {
 	int cbklocked;
-	int loopkill;
+	int plotkill;
 
 	/* Threads */
 	pthread_t thdloopplot;
 	pthread_t thdconnect;
-	pthread_t thdread;
 
 	/* Thread loopplot block */
 	pthread_mutex_t mtxloopplot;
@@ -96,6 +92,7 @@ typedef struct {
 
 	/* Menubar */
 	GtkWidget *itmconnect;
+	GtkWidget *itmdisconnect;
 
 	/* Status bar */
 	GtkWidget *statusbar;
@@ -184,6 +181,7 @@ GtkWidget *gui_plot_new(gui_t *_gui);
 gui_t *gui_new(char *_addr, char *_port);
 void *gui_connect(void *_gui);
 GtkWidget *gui_getmenubar(GtkWidget *window);
+int gui_disconnect(gui_t *_gui);
 
 /* Threaded */
 void *gui_loopplot(void *_p);
@@ -221,7 +219,6 @@ unsigned ui_winid(char *s);
 void gui_drawplot(gui_t *_gui);
 void gui_plot_steal(GtkWidget *_gnuplot);
 
-void gui_disconnect(gui_t *_gui);
 
 /* PNG reading handler */
 void gui_readpng(png_structp _pngstruct, png_bytep _data, png_size_t _len);
