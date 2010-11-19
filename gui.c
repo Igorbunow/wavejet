@@ -1939,7 +1939,7 @@ says I.\n");
 			y2 = round((float) (gui->data[i + 1] + 128) *
 					   GUI_PLOT_SUBDIVLEN * 5 * GUI_PLOT_VDIVC /
 					   255);
-			printf("%d, %d\n", gui->data[i], gui->data[i + 1]);
+/* 			printf("%d, %d\n", gui->data[i], gui->data[i + 1]); */
 			gui_drawline(gui->imgplot,
 						 gui->tras[ch],
 						 gui->clrs[ch],
