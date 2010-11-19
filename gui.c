@@ -76,6 +76,9 @@ gui_t *gui_new(char *_addr, char *_port)
 	/* Make pref window */
 	gui->winprfs = gui_winprfs_new(gui);
 
+	/* Make about window */
+	gui->winabout = gui_winabout_new(gui);
+
 	/* Create preferences (setting default parameters) */
 	gui->prfs = prf_new();
 
@@ -134,6 +137,10 @@ GtkWidget *gui_menubar_new(gui_t *_gui)
 	GtkWidget *itmsep;
 	GtkWidget *itmquit;
 
+	GtkWidget *mnuhelp;
+	GtkWidget *itmhelp;
+	GtkWidget *itmabout;
+
 	/* Accelerator variables */
 	GtkAccelGroup *acc;
 
@@ -161,6 +168,12 @@ GtkWidget *gui_menubar_new(gui_t *_gui)
 	gtk_menu_item_set_submenu(GTK_MENU_ITEM(itmfile), mnufile);
 	gtk_menu_bar_append(GTK_MENU_BAR(menubar), itmfile);
 	gtk_widget_show(itmfile);
+
+	itmhelp = gtk_menu_item_new_with_label("Help");
+	mnuhelp = gtk_menu_new();
+	gtk_menu_item_set_submenu(GTK_MENU_ITEM(itmhelp), mnuhelp);
+	gtk_menu_bar_append(GTK_MENU_BAR(menubar), itmhelp);
+	gtk_widget_show(itmhelp);
 
 	#if DEV
 	itmscp = gtk_menu_item_new_with_label("Scope");
@@ -212,6 +225,12 @@ GtkWidget *gui_menubar_new(gui_t *_gui)
 					 G_CALLBACK(cbk_quit), _gui);
 	gtk_menu_shell_append(GTK_MENU_SHELL(mnufile), itmquit);
 	gtk_widget_show(itmquit);
+
+	itmabout = gtk_image_menu_item_new_with_label("About");
+	g_signal_connect(G_OBJECT(itmabout), "activate",
+					 G_CALLBACK(cbk_about), _gui);
+	gtk_menu_shell_append(GTK_MENU_SHELL(mnuhelp), itmabout);
+	gtk_widget_show(itmabout);
 
 	#if DEV
 	_gui->itminfo = gtk_check_menu_item_new_with_label("Info");
@@ -759,6 +778,56 @@ GtkWidget *gui_wininfo_new(gui_t *_gui)
 	return _gui->wininfo;
 }
 #endif
+
+/* Creates a new about window with widgets */
+GtkWidget *gui_winabout_new(gui_t *_g)
+{
+	GtkWidget *box;
+	GtkWidget *frame;
+	GtkWidget *label;
+	char buf[SMLBUFSIZE];
+
+	_g->winabout = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+	gtk_window_set_title(GTK_WINDOW(_g->winabout), "About Wavejet Control");
+	g_signal_connect(G_OBJECT(_g->winabout), "delete-event",
+					 G_CALLBACK(cbk_delwinabout), NULL);
+
+	box = gtk_vbox_new(FALSE, 20);
+	gtk_container_add(GTK_CONTAINER(_g->winabout), box);
+	gtk_widget_show(box);
+
+	frame = gtk_frame_new("Wavejet Control Version");
+	gtk_box_pack_start(GTK_BOX(box), frame, FALSE, FALSE, 0);
+	gtk_widget_show(frame);
+
+	label = gtk_label_new("20101119");
+	gtk_container_add(GTK_CONTAINER(frame), label);
+	gtk_widget_show(label);
+
+	frame = gtk_frame_new("GTK+ Version");
+	gtk_box_pack_start(GTK_BOX(box), frame, FALSE, FALSE, 0);
+	gtk_widget_show(frame);
+
+	sprintf(buf, "%d.%d.%d", gtk_major_version,
+							 gtk_minor_version,
+							 gtk_micro_version);
+	label = gtk_label_new(buf);
+	gtk_container_add(GTK_CONTAINER(frame), label);
+	gtk_widget_show(label);
+
+	frame = gtk_frame_new("Release Notes");
+	gtk_box_pack_start(GTK_BOX(box), frame, FALSE, FALSE, 0);
+	gtk_widget_show(frame);
+
+	label = gtk_label_new("\
+Added this about box.\n\
+BYTE waveform (as opposed to ASCII).\n\
+Various fixes.");
+	gtk_container_add(GTK_CONTAINER(frame), label);
+	gtk_widget_show(label);
+
+	return _g->winabout;
+}
 
 /* Creates a new RC window with widgets */
 GtkWidget *gui_winprfs_new(gui_t *_gui)
@@ -1893,7 +1962,7 @@ void gui_dtwave(int _last, char *_data, int _len, void *_gui)
 		} else {
 			/* Panic */
 			if (panic) {
-				fprintf(stderr, "\
+				fprintf(stderr, "\n\
 Unexpected waveform format -- Let me explain: it was assumed a waveform\n\
 header VICP packet would announce the *total* number of points for this\n\
 trace; but now I'm getting a single VICP packet with *more* points than\n\

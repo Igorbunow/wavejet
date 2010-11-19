@@ -3,7 +3,7 @@
 int g_locked = 0;
 #define BUFSIZE 64
 
-/* Window deletion with the quit menu itme */
+/* Window deletion with the quit menu item */
 void cbk_quit(GtkWidget *_wgt, void *_gui)
 {
 	gui_t *gui;
@@ -693,6 +693,18 @@ void cbk_rpsdlg(GtkDialog *_dlg, int _arg1, void *_gui)
 void cbk_opnwinprfs(GtkMenuItem *_itm, void *_gui)
 {
 	gtk_widget_show(((gui_t *) _gui)->winprfs);
+}
+
+/* About Window */
+void cbk_about(GtkMenuItem *_i, void *_gui)
+{
+	gtk_widget_show(((gui_t *) _gui)->winabout);
+}
+
+gboolean cbk_delwinabout(GtkWidget *_wgt, GdkEvent *_evt, void *_nothing)
+{
+	gtk_widget_hide(_wgt);
+	return TRUE;
 }
 
 /* Upon window deletion */

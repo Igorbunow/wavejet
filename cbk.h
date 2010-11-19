@@ -20,6 +20,7 @@ gboolean cbk_btnrlsofst(GtkWidget *_arw, GdkEventButton *_evt, void *_data);
 void cbk_connect(GtkMenuItem *_itm, void *_gui);
 void cbk_disconnect(GtkMenuItem *_itm, void *_gui);
 void cbk_opnwinprfs(GtkMenuItem *_itm, void *_gui);
+void cbk_about(GtkMenuItem *_i, void *_gui);
 
 /* Dialog Responses */
 void cbk_rpsdlg(GtkDialog *_dlg, int _arg1, void *_gui);
@@ -29,6 +30,7 @@ void cbk_rspwinprfs(GtkDialog *_dlg, int _rsp, void *_gui);
 void cbk_quit(GtkWidget *_wgt, void *_gui);
 void cbk_delete(GtkWidget *_wgt, GdkEvent *_evt, void *_gui);
 gboolean cbk_delwinprfs(GtkWidget *_wgt, GdkEvent *_evt, void *_gui);
+gboolean cbk_delwinabout(GtkWidget *_wgt, GdkEvent *_evt, void *_nothing);
 
 /* Future development functions */
 #ifdef DEV

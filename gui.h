@@ -77,6 +77,7 @@ typedef struct {
 	/* Windows */
 	GtkWidget *winmain;
 	GtkWidget *winprfs;
+	GtkWidget *winabout;
 	GtkWidget *winplot;
 
 	/* Windows -- For future development */
@@ -172,6 +173,7 @@ double round(double x);
 /* Windows */
 GtkWidget *gui_winmain_new(gui_t *_gui);
 GtkWidget *gui_winprfs_new(gui_t *_gui);
+GtkWidget *gui_winabout_new(gui_t *_gui);
 GtkWidget *gui_winplot_new(gui_t *_gui);
 
 /* Plot */
