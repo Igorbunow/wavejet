@@ -144,7 +144,7 @@ typedef struct {
 	GdkGC *gc;
 	GtkWidget *stsbardtwave;
 	unsigned ctxiddtwave;
-	int data[GUI_PLOT_PNTCMAX];
+	char data[GUI_PLOT_PNTCMAX];
 	GtkWidget *alignment;
 	gui_pnt_t tras[SCP_CHC][GUI_TSCRNW * GUI_TSCRNH];
 	long clrs[SCP_CHC];	/* Yellow, Pink, Cyan, Green */

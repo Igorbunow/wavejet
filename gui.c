@@ -1824,6 +1824,25 @@ void gui_clearscreen(GdkImage *_img, long _traces[SCP_CHC][GUI_TSCRNW * GUI_TSCR
 }
 #endif
 
+/* One word about BYTE waveforms: there's a leading VICP packet storing the
+number of points. For instance if you fire DTPOINT 2; DTWAVE?, you'll get:
+ffffff80 01 00 00 00 00 00 0a 23 38 30 30 30 30 30 30 30 32
+ffffff80 01 00 00 00 00 00 02 ffffffeb ffffffeb
+ffffff81 01 00 00 00 00 00 01 0a
+
+The first VICP packet is the length in ASCII (yes, even if the waveform is
+in BYTE mode). The actual values we're interested in take the second VICP
+packet. The third packet is the traditional leave-taking newline.
+
+Note that ASCII waveforms are not lead by this header packet but talk shop
+at once:
+ffffff80 01 00 00 00 00 00 05 2d 35 33 37 36	<- ASCII Value
+ffffff80 01 00 00 00 00 00 01 2c				<- Comma
+ffffff80 01 00 00 00 00 00 05 2d 35 33 37 36	<- ASCII Value
+ffffff80 01 00 00 00 00 00 01 0a				<- Newline (not comma)
+ffffff81 01 00 00 00 00 00 01 0a				<- Leave-taking
+*/
+
 /* Called once for each and every channel */
 void gui_dtwave(int _last, char *_data, int _len, void *_gui)
 {
@@ -1833,6 +1852,9 @@ void gui_dtwave(int _last, char *_data, int _len, void *_gui)
 	long white;
 	int x1, y1, x2, y2;
 	static int ch = 0;
+	static int header = 1; /* Track first waveform header VICP packet */
+	static int len; /* Waveform length, as announced by waveform header */
+	static int panic = 1; /* Display unexpected waveform message only once */
 
 	/* Convenient */
 	gui = _gui;
@@ -1841,18 +1863,51 @@ void gui_dtwave(int _last, char *_data, int _len, void *_gui)
 	white = 255 >> (8 - gui->visual->red_prec) << gui->visual->red_shift |
 			255 >> (8 - gui->visual->green_prec) << gui->visual->green_shift |
 			255 >> (8 - gui->visual->blue_prec) << gui->visual->blue_shift;
+	
+	/* Let's be cautious and assume a BYTE waveform doesn't necessarily
+	fit into a single VICP packet. In this case, it should be sound to
+	assume a VICP packet whose header announces less points than the
+	waveform header originally promises should be followed by another
+	one, without a waveform header. (Since the waveform header is for
+	all the points, snappie?) Of course, that's just good sense, no
+	proof that's really how it goes. */
 
-	if (!_last) {
-		if (_data[0] != ',' && _data[0] != '\n' && c < GUI_PLOT_PNTCMAX) {
-			#if DEBUG
-			if (c > GUI_PLOT_PNTCMAX - 1) {
-				printf("Aaaaaaaargh! I only have room for %d points!\n",
-					   GUI_PLOT_PNTCMAX);
-				exit(1);
+	if (header) {
+		/* Read ASCII size from first VICP packet */
+		_data[_len] = 0;
+		_data += 2; /* Skip leading #8 */
+		len = atoi(_data);
+		header = 0;
+	} else if (!_last) {
+		if (_len < len) {
+			/* Waveform data couldn't fit in single packet */
+			memcpy(gui->data + c, _data,
+				   _len < GUI_PLOT_PNTCMAX ? _len : GUI_PLOT_PNTCMAX);
+			c += _len < GUI_PLOT_PNTCMAX ? _len : GUI_PLOT_PNTCMAX;
+		} else if (_len == len) {
+			/* Waveform data fits nicely in single packet. We're done. Time
+			to plot something on screen. */
+			memcpy(gui->data + c, _data,
+				   _len < GUI_PLOT_PNTCMAX ? _len : GUI_PLOT_PNTCMAX);
+			c += _len < GUI_PLOT_PNTCMAX ? _len : GUI_PLOT_PNTCMAX;
+		} else {
+			/* Panic */
+			if (panic) {
+				fprintf(stderr, "\
+Unexpected waveform format -- Let me explain: it was assumed a waveform\n\
+header VICP packet would announce the *total* number of points for this\n\
+trace; but now I'm getting a single VICP packet with *more* points than\n\
+the aforexpected total.\n\
+\n\
+Tell you what: I'll just try to plot the waveform like it was perfectly\n\
+normal, but you should have someone look into this because it's definitely\n\
+fishy. I won't repeat this message again. Enough bad news for today, \
+says I.\n");
+				panic = 0;
 			}
-			#endif
-			_data[_len] = 0;
-			gui->data[c++] = atoi(_data);
+			memcpy(gui->data + c, _data,
+				   _len < GUI_PLOT_PNTCMAX ? _len : GUI_PLOT_PNTCMAX);
+			c += _len;
 		}
 	} else {
 		gdk_threads_enter();
@@ -1872,12 +1927,19 @@ void gui_dtwave(int _last, char *_data, int _len, void *_gui)
 			x2 = round((float) (i + 1) *
 					   (GUI_PLOT_SUBDIVLEN * 5 * GUI_PLOT_TDIVC) /
 					   (c - 1));
-			y1 = round((float) (gui->data[i] + 32768) *
+/* 			y1 = round((float) (gui->data[i] + 32768) *
 					   GUI_PLOT_SUBDIVLEN * 5 * GUI_PLOT_VDIVC /
 					   65535);
 			y2 = round((float) (gui->data[i + 1] + 32768) *
 					   GUI_PLOT_SUBDIVLEN * 5 * GUI_PLOT_VDIVC /
-					   65535);
+					   65535); */
+			y1 = round((float) (gui->data[i] + 128) *
+					   GUI_PLOT_SUBDIVLEN * 5 * GUI_PLOT_VDIVC /
+					   255);
+			y2 = round((float) (gui->data[i + 1] + 128) *
+					   GUI_PLOT_SUBDIVLEN * 5 * GUI_PLOT_VDIVC /
+					   255);
+			printf("%d, %d\n", gui->data[i], gui->data[i + 1]);
 			gui_drawline(gui->imgplot,
 						 gui->tras[ch],
 						 gui->clrs[ch],
@@ -1887,6 +1949,7 @@ void gui_dtwave(int _last, char *_data, int _len, void *_gui)
 						 x2 + GUI_PLOT_PAD,
 						 GUI_PLOT_PAD + GUI_PLOT_SUBDIVLEN * 5 *
 						 GUI_PLOT_VDIVC - y2);
+
 			/* XXX Draw point */
 /* 			gdk_image_put_pixel(gui->imgplot,
 								x1 + GUI_PLOT_PAD,
@@ -1908,6 +1971,7 @@ void gui_dtwave(int _last, char *_data, int _len, void *_gui)
 		gdk_threads_leave();
 		ch = (ch + 1) % 4;
 		c = 0;
+		header = 1;
 	}
 }
 
@@ -2092,7 +2156,8 @@ void *gui_loopplot(void *_gui)
 
 		/* Take actions */
 		if (trmd == TRMD_AUTO) {
-			scp_cmd_push(gui->scp, "dtform ascii", NULL, NULL);
+			scp_cmd_push(gui->scp, "dtform byte", NULL, NULL);
+/* 			scp_cmd_push(gui->scp, "dtform ascii", NULL, NULL); */
 			scp_cmd_push(gui->scp, "wavesrc CH1", NULL, NULL);
 			scp_cmd_push(gui->scp, SCP_DTPOINTS, NULL, NULL);
 			scp_cmd_push(gui->scp, "dtwave?", gui_dtwave, gui);

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <unistd.h>
 #include <gtk/gtk.h>
 
 #include "gui.h"
@@ -12,6 +13,8 @@ void usage(void)
 
 int main(int argc, char *argv[])
 {
+	int rc;
+
 	/* GUI variables */
 	gui_t *gui;
 
@@ -21,6 +24,18 @@ int main(int argc, char *argv[])
 
 	/* Other variables */
 	char buf[BUFSIZE];				/* General purpose string buffer */
+
+	/* Hand in terminal to shell */
+	rc = fork();
+	if (rc == -1) {
+		perror("fork");
+		return 1;
+	} else if (rc != 0) {
+		/* Parent Process */
+		return 0;
+	}
+
+	/* Now we're in the child process */
 
 	/* Initialize GDK threads */
 	g_thread_init(NULL);

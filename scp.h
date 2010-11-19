@@ -7,6 +7,7 @@
 
 #define SCP_DTPOINTS_MAX 500
 #define SCP_DTPOINTS "dtpoints 1000"
+/* #define SCP_DTPOINTS "dtpoints 10" */
 #define SCP_MAXVAL 32768	/* Max value a scope can give */
 #define SCP_CHC 4
 #define SCP_VDIVC 8			/* Number of vertical divisions */

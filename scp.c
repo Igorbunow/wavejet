@@ -14,7 +14,8 @@
 #define HDR_CLEAR		0x10
 
 #define BUFSIZE			32
-#define BUNCHSIZE		128		/* Size of a bunch coming from the scope */
+#define BUNCHSIZE		65536	/* Size of a bunch coming from the scope */
+#define DUSTHEAP		128		/* Max unwanted bytes coming from the scope */
 
 /* Connect to scope and returns pointer to it upon success, NULL otherwise */
 scp_t *scp_new(const char *_addr, const char *_port)
@@ -764,6 +765,8 @@ void *scp_read(void *_scope)
 	int rdc = 0;					/* Read character count */
 	/* Data variables */
 	char strdata[BUNCHSIZE] = "";	/* Byte-wise data buffer */
+	char dustbin[DUSTHEAP];			/* Unwanted bytes coming from the scope */
+	int leftover;
 	int islast;						/* Is last bunch flag */
 	/* Other variables */
 	scp_cmd *cmd;
@@ -793,7 +796,6 @@ void *scp_read(void *_scope)
 		scp_query(s, cmd->query);
 
 		/* If command expects answer... */
-		/* FIXME Something is preventing disconnection over here... */
 		if (cmd->hdlr != NULL) {
 			islast = 0;
 			while (!islast) {
@@ -821,7 +823,7 @@ void *scp_read(void *_scope)
 				h.len = ntohl(h.len);
 
 				/* Read one bunch */
-				for (rdc = 0; rdc < h.len && h.len < BUNCHSIZE;) {
+				for (rdc = 0; rdc < h.len && rdc < BUNCHSIZE;) {
 /* 					stat = select(s->sockfd + 1, &s->fds, NULL, NULL, &s->tmt); */
 					stat = 1;
 					s->tmt.tv_sec = SCP_TMT;
@@ -834,8 +836,26 @@ void *scp_read(void *_scope)
 						exit(1);
 						break;
 					} else {
-						rdc += read(s->sockfd, strdata + rdc, h.len - rdc);
+						rdc += read(s->sockfd,
+									strdata + rdc,
+									h.len - rdc < BUNCHSIZE - rdc ?
+										h.len - rdc : BUNCHSIZE - rdc );
 					}
+				}
+
+				leftover = h.len - rdc;
+				if (leftover > 0) {
+					fprintf(stderr,
+						"Warning: Dropped points because buffer too small");
+				}
+
+				/* Ditch whatever remains couldn't fit in the buffer */
+				for (rdc = 0; rdc < leftover;) {
+					/* It would seem it's not possible to read characters 
+					from a socket and not do anything with them. */
+					rdc += read(s->sockfd,
+						dustbin,
+						leftover - rdc < DUSTHEAP ? leftover - rdc : DUSTHEAP);
 				}
 
 				/* Is it the last bunch? */
@@ -844,12 +864,11 @@ void *scp_read(void *_scope)
 				} else {
 					islast = 0;
 				}
-				/* FIXME Blocking after this point */
 
 				/* Call handler to take care of this data */
 				if (lost) {
 					cmd->hdlr(1, NULL, 0, cmd->dst);
-/* 					scp_recall(s); */
+					/* scp_recall(s); */
 				} else {
 					cmd->hdlr(islast, strdata, h.len, cmd->dst);
 				}
