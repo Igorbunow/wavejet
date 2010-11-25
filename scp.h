@@ -24,15 +24,15 @@ typedef struct {
 	struct sockaddr_in sockaddr;
 	fd_set fds;	/* Socket set for use with select */
 	struct timeval tmt;
-	int readkill;
+	int readkill, writekill;
 
 	pthread_t thdread;
 	pthread_mutex_t mutex;
 	pthread_mutex_t mtxquit;
 	pthread_cond_t cndquit;
 
-	pthread_mutex_t mtxread;
-	pthread_cond_t cndread;
+	pthread_mutex_t mtxread, mtxwrite;
+	pthread_cond_t cndread, cndwrite;
 
 	/* Command queue */
 	scp_cmd *cmd_first;

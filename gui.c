@@ -1968,15 +1968,14 @@ header VICP packet would announce the *total* number of points for this\n\
 trace (%d bytes, if I remember well); but now I'm getting a single %d bytes\n\
 VICP packet, i.e. with *more* points than the aforexpected total.\n\
 \n\
-Tell you what: I'll just try to plot the waveform like it was perfectly\n\
-normal, but you should have someone look into this because it's definitely\n\
-fishy. I won't repeat this message again. Enough bad news for today, \
-says I.\n", len, _len);
+Tell you what: I'll just drop the waveform as if nothing happened normal, but\n\
+you should have someone look into this because it's definitely fishy. I won't\n\
+repeat this message again. Enough bad news for today, says I.\n", len, _len);
 				panic = 0;
 			}
-			memcpy(gui->data + c, _data,
+/* 			memcpy(gui->data + c, _data,
 				   _len < GUI_PLOT_PNTCMAX ? _len : GUI_PLOT_PNTCMAX);
-			c += _len;
+			c += _len; */
 		}
 	} else {
 		gdk_threads_enter();

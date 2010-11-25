@@ -9,7 +9,7 @@
 #include "scp.h"
 
 #define HDR_DATAFLAG	0x80
-#define HDR_SRFLAG		0x89	/* Service Request Flag */
+#define HDR_SRERCHFLAG	0x89	/* Service Request Enable Register Change */
 #define HDR_EOIFLAG		0x01
 #define HDR_RESERVED	100
 #define HDR_CLEAR		0x10
@@ -93,9 +93,11 @@ scp_t *scp_new(const char *_addr,
 
 		/* Get ready for reading thread */
 		s->readkill = 0;
+		s->writekill = 0;
 
-		/* Start reading thread */
+		/* Start reading and writing threads */
 		pthread_create(&s->thdread, NULL, scp_read, s);
+		pthread_create(&s->thdwrite, NULL, scp_write, s);
 
 		return s;
 	}
@@ -252,6 +254,7 @@ int scp_destroy(scp_t *_scope)
 
 	if (_scope != NULL) {
 		_scope->readkill = 1;
+		_scope->writekill = 1;
 		rc = pthread_mutex_lock(&_scope->mtxread);
 		pthread_cond_signal(&_scope->cndread);
 		pthread_mutex_unlock(&_scope->mtxread);
@@ -765,8 +768,39 @@ void scp_settrdl(scp_t *_scope, const char *_dl)
 }
 #endif
 
+/* Writing scope routine */
+void *scp_write(scp_t *_s)
+{
+	scp_cmd *cmd;
+
+	while (!_s->writekill) {
+		/* Wait til last command is digested by the scope because it tends to
+		stifle as soon as it gets more than one meatball at a time */
+		pthread_mutex_lock(&_s->mtxwrite);
+		if (!s->digested) {
+			pthread_cond_wait(&_s->cndwrite, &s->mtxwrite);
+		}
+		pthread_mutex_unlock(&_s->mtxwrite);
+
+		/* Get another meatball */
+		cmd = scp_cmd_get(_s);
+
+		/* Feed scope with meatball */
+		scp_query(_s, cmd->query);
+
+		/* Bon appetit */
+
+		/* Dump command at once if it doesn't expect any reply */
+		if (!cmd->hdlr) {
+			scp_cmd_pop(_s);
+		}
+	}
+
+	return NULL;
+}
+
 /* Reading thread routine (takes the scope as argument) */
-void *scp_read(void *_scope)
+void *scp_read(scp_t *_s)
 {
 	/* Header variables */
 	header h;						/* Working header */
@@ -783,142 +817,47 @@ void *scp_read(void *_scope)
 	int lost;			/* Lost command (in case of timeout or error) */
 	int srech = 0;		/* Service Request Enable Register Change */
 
-	/* Convenient */
-	s = (scp_t *) _scope;
-
 	while (!s->readkill) {
-		/* Wait if no command left */
-		pthread_mutex_lock(&s->mtxread);
-		if (s->cmdc < 1) {
-			pthread_cond_wait(&s->cndread, &s->mtxread);
-		}
-		pthread_mutex_unlock(&s->mtxread);
-
-		/* Get next command */
-		lost = 0;	/* New hope */
-		cmd = scp_cmd_get(s);
-		if (!cmd) {
-			continue;
+		/* Block until you read a header */
+		for (rdc = 0; rdc < 8;) {
+			rdc += read(_s->sockfd, (char *) &h + rdc, sizeof(header) - rdc);
 		}
 
-		/* Write command to scope */
-		if (srech) {
-			/* No point in resending the query, it's just what I've done and
-			I haven't got my answer yet because of the SRE register change. */
-			printf("not asking for next query, reading directly\n");
-			printf("reminder: %s\n", cmd->query);
-			srech = 0;
-		} else {
-			scp_query(s, cmd->query);
-			printf("%s\n", cmd->query);
+		/* Length */
+		h.len = ntohl(h.len);
+
+		/* Collect data */
+		for (rdc = 0; rdc < h.len && rdc < BUNCHSIZE;) {
+			rdc += read(_s->sockfd,
+						strdata + rdc,
+						h.len - rdc < BUNCHSIZE - rdc ?
+							h.len - rdc : BUNCHSIZE - rdc);
 		}
 
-		/* If command expects answer... */
-		if (cmd->hdlr != NULL) {
-			islast = 0;
-			while (!islast) {
-				/* Read header */
-				for (rdc = 0; rdc < 8;) {
-/* 					stat = select(s->sockfd + 1, &s->fds, NULL, NULL, &s->tmt); */
-					stat = 1;
-					s->tmt.tv_sec = SCP_TMT;
-					if (stat < 1) {
-						#if DEBUG
-						printf("timeout\n");
-						#endif
-/* 						scp_hangup(s); */
-						lost = 1;
-						exit(1);
-						break;
-					} else {
-						rdc += read(s->sockfd,
-									(char *) &h + rdc, 
-									sizeof(header) - rdc);
-					}
-				}
+		/* Too much data for the buffer? */
+		leftover = h.len - rdc;
+		if (leftover > 0) {
+			fprintf(stderr, "Warning: dropped data because buffer too small");
+		}
 
-				/* Turn size in the right order */
-				h.len = ntohl(h.len);
-/* 				printf("%d\n", h.len); */
-
-				/* Read one bunch */
-				for (rdc = 0; rdc < h.len && rdc < BUNCHSIZE;) {
-/* 					stat = select(s->sockfd + 1, &s->fds, NULL, NULL, &s->tmt); */
-					stat = 1;
-					s->tmt.tv_sec = SCP_TMT;
-					if (stat < 1) {
-						#if DEBUG
-						printf("timeout\n");
-						#endif
-/* 						scp_hangup(s); */
-						lost = 1;
-						exit(1);
-						break;
-					} else {
-						rdc += read(s->sockfd,
-									strdata + rdc,
-									h.len - rdc < BUNCHSIZE - rdc ?
-										h.len - rdc : BUNCHSIZE - rdc );
-					}
-				}
-
-				leftover = h.len - rdc;
-				if (leftover > 0) {
-					fprintf(stderr,
-						"Warning: Dropped points because buffer too small");
-				}
-
-				/* Ditch whatever remains couldn't fit in the buffer */
-				for (rdc = 0; rdc < leftover;) {
-					/* It would seem it's not possible to read characters 
-					from a socket and not do anything with them. */
-					rdc += read(s->sockfd,
+		/* Ditch whatever remains couldn't fit in the buffer */
+		for (rdc = 0; rdc < leftover;) {
+			/* It would seem it's not possible to read characters 
+			from a socket and not do anything with them. */
+			rdc += read(_s->sockfd,
 						dustbin,
 						leftover - rdc < DUSTHEAP ? leftover - rdc : DUSTHEAP);
-				}
-
-				/* Is it the last bunch? */
-				if (lost || h.dataflag == (HDR_EOIFLAG | HDR_DATAFLAG)) {
-					islast = 1;
-				} else if (h.dataflag == HDR_SRFLAG) {
-					islast = 1;
-				} else {
-					islast = 0;
-				}
-
-				/* Call handler to take care of this data */
-				if (lost) {
-					cmd->hdlr(1, NULL, 0, cmd->dst);
-					/* scp_recall(s); */
-				} else if (h.dataflag == HDR_SRFLAG) {
-					printf("called trg handler: ");
-					s->trg(strdata, h.len, s->trgdst);
-					srech = 1;	/* Do we have to pop cmd, shortly? */
-				} else {
-					printf("called ad hoc handler\n");
-					cmd->hdlr(islast, strdata, h.len, cmd->dst);
-				}
-			}
 		}
-
-		/* Get rid of last command */
-		if (!srech ||
-			strcmp(cmd->query, "*cls; tese 1; *sre 1; trmd single") == 0) {
+		
+		/* Service request or regular command? */
+		if (h.dataflag == HDR_SRERCHFLAG) {
+			srech = 1;	/* Do we have to pop cmd, shortly? */
+			_s->trg(strdata, h.len, _s->trgdst);
+		} else {
+			cmd = scp_cmd_get(s);
+			cmd->hdlr(islast, strdata, h.len, cmd->dst);
 			scp_cmd_pop(s);
-		} else {
-			/* Don't pop current command, this was only a SRE change and I
-			didn't get an answer for my query yet */
 		}
-
-		/* Check if there are any commands left */
-/* 		pthread_mutex_lock(&s->mtxquit);
-		if (s->cmdc == 0) {
-			printf("ok, no command left\n");
-			pthread_cond_broadcast(&s->cndquit);
-		} else {
-			printf("there are still commands\n");
-		}
-		pthread_mutex_unlock(&s->mtxquit); */
 	}
 	return NULL;
 }
