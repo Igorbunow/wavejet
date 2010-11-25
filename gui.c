@@ -800,7 +800,7 @@ GtkWidget *gui_winabout_new(gui_t *_g)
 	gtk_box_pack_start(GTK_BOX(box), frame, FALSE, FALSE, 0);
 	gtk_widget_show(frame);
 
-	label = gtk_label_new("20101119");
+	label = gtk_label_new("20101125");
 	gtk_container_add(GTK_CONTAINER(frame), label);
 	gtk_widget_show(label);
 
@@ -821,7 +821,7 @@ GtkWidget *gui_winabout_new(gui_t *_g)
 
 	label = gtk_label_new("\
 Added this about box.\n\
-BYTE waveform (as opposed to ASCII).\n\
+BYTE waveforms (as opposed to ASCII) for all trigger modes.\n\
 Various fixes.");
 	gtk_container_add(GTK_CONTAINER(frame), label);
 	gtk_widget_show(label);
