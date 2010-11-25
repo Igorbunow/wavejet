@@ -2063,6 +2063,7 @@ void gui_trmdsingle(int _last, char *_data, int _len, void *_gui)
 		gdk_threads_leave();
 
 		/* Get new waves */
+		scp_cmd_push(gui->scp, "dtform byte", NULL, NULL);
 		scp_cmd_push(gui->scp, "wavesrc CH1", NULL, NULL);
 		scp_cmd_push(gui->scp, SCP_DTPOINTS, NULL, NULL);
 		scp_cmd_push(gui->scp, "dtwave?", gui_dtwave, gui);
@@ -2111,6 +2112,7 @@ wavesrc CH3; dtwave?; wavesrc CH4; dtwave?"; */
 
 		/* Get new screenshot */
 /* 		scp_cmd_push(gui->scp, buf, gui_newdtwave, gui); */
+		scp_cmd_push(gui->scp, "dtform byte", NULL, NULL);
 		scp_cmd_push(gui->scp, "wavesrc CH1", NULL, NULL);
 		scp_cmd_push(gui->scp, SCP_DTPOINTS, NULL, NULL);
 		scp_cmd_push(gui->scp, "dtwave?", gui_dtwave, gui);
