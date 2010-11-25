@@ -18,94 +18,6 @@
 #define BUNCHSIZE		65536	/* Size of a bunch coming from the scope */
 #define DUSTHEAP		128		/* Max unwanted bytes coming from the scope */
 
-/* Connect to scope and returns pointer to it upon success, NULL otherwise */
-scp_t *scp_new(const char *_addr,
-			   const char *_port,
-			   void (*_trg)(char *_data, int _len, void *_dst),
-			   void *_trgdst)
-{
-	int rc;
-	struct addrinfo hints;
-	struct addrinfo *info;
-	scp_t *s;		/* To be returned */
-	
-	/* Make room for the scope to return */
-	s = (scp_t *) malloc(sizeof(scp_t));
-
-	/* Set trigger handler */
-	s->trg = _trg;
-	s->trgdst = _trgdst;
-
-	/* Get address info */
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-	if ((rc = getaddrinfo(_addr, _port, &hints, &info)) != 0) {
-		#if DEBUG
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rc));
-		#endif
-		return NULL;
-	}
-
-	/* Get socket */
-	s->sockfd = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
-	if (s->sockfd == -1) {
-		#if DEBUG
-		fprintf(stderr, "socket: %s\n", strerror(errno));
-		#endif
-		return NULL;
-	}
-
-	/* Connect */
-	rc = connect(s->sockfd, info->ai_addr, info->ai_addrlen);
-	if (rc == -1) {
-		#if DEBUG
-		fprintf(stderr, "connect: %s\n", strerror(errno));
-		#endif
-	}
-
-	/* Clean up */
-	freeaddrinfo(info);
-
-	/* Mux stuff to play with timeout */
-	FD_ZERO(&s->fds);
-	FD_SET(s->sockfd, &s->fds);
-	s->tmt.tv_sec = SCP_TMT;
-	s->tmt.tv_usec = 0;
-
-	/* Check status and return */
-	if (rc == 0) {
-		/* Initialize mutex */
-		pthread_mutex_init(&s->mutex, NULL);
-
-		/* Initialize quit condition */
-		pthread_mutex_init(&s->mtxquit, NULL);
-		pthread_cond_init(&s->cndquit, NULL);
-
-		/* Initialize command readout condition */
-		pthread_mutex_init(&s->mtxread, NULL);
-		pthread_cond_init(&s->cndread, NULL);
-		
-		/* Say there's no command queued */
-		s->cmdc = 0;
-		s->cmd_first = NULL;
-		s->cmd_last = NULL;
-
-		/* Get ready for reading thread */
-		s->readkill = 0;
-		s->writekill = 0;
-
-		/* Start reading and writing threads */
-		pthread_create(&s->thdread, NULL, scp_read, s);
-		pthread_create(&s->thdwrite, NULL, scp_write, s);
-
-		return s;
-	}
-
-	free(s);
-	return NULL;
-}
-
 #if DEV
 /* In case of costiveness */
 int scp_hangup(scp_t *_s)
@@ -774,18 +686,16 @@ void *scp_write(scp_t *_s)
 	scp_cmd *cmd;
 
 	while (!_s->writekill) {
-		/* Wait til last command is digested by the scope because it tends to
-		stifle as soon as it gets more than one meatball at a time */
+		/* Wait til scope has finished digested before feeding it
+		with another bitball */
 		pthread_mutex_lock(&_s->mtxwrite);
-		if (!s->digested) {
-			pthread_cond_wait(&_s->cndwrite, &s->mtxwrite);
-		}
+		pthread_cond_wait(&_s->cndwrite, &_s->mtxwrite);
 		pthread_mutex_unlock(&_s->mtxwrite);
 
-		/* Get another meatball */
+		/* Get another bitball from the plate */
 		cmd = scp_cmd_get(_s);
 
-		/* Feed scope with meatball */
+		/* Feed scope with bitball */
 		scp_query(_s, cmd->query);
 
 		/* Bon appetit */
@@ -813,8 +723,6 @@ void *scp_read(scp_t *_s)
 	/* Other variables */
 	scp_cmd *cmd;
 	scp_t *s;
-	int stat;			/* General purpose status */
-	int lost;			/* Lost command (in case of timeout or error) */
 	int srech = 0;		/* Service Request Enable Register Change */
 
 	while (!s->readkill) {
@@ -848,6 +756,14 @@ void *scp_read(scp_t *_s)
 						dustbin,
 						leftover - rdc < DUSTHEAP ? leftover - rdc : DUSTHEAP);
 		}
+
+		/* There's at most one command left here and we're going to
+		take care of it right away. Therefore, scope should be done
+		digesting and it's time for another bitball. */
+		/* FIXME In fact, I should have made sure it was the last VICP packet */
+		pthread_mutex_lock(&_s->mtxwrite);
+		pthread_cond_signal(&_s->cndwrite);
+		pthread_mutex_unlock(&_s->mtxwrite);
 		
 		/* Service request or regular command? */
 		if (h.dataflag == HDR_SRERCHFLAG) {
@@ -859,6 +775,94 @@ void *scp_read(scp_t *_s)
 			scp_cmd_pop(s);
 		}
 	}
+	return NULL;
+}
+
+/* Connect to scope and returns pointer to it upon success, NULL otherwise */
+scp_t *scp_new(const char *_addr,
+			   const char *_port,
+			   void (*_trg)(char *_data, int _len, void *_dst),
+			   void *_trgdst)
+{
+	int rc;
+	struct addrinfo hints;
+	struct addrinfo *info;
+	scp_t *s;		/* To be returned */
+	
+	/* Make room for the scope to return */
+	s = (scp_t *) malloc(sizeof(scp_t));
+
+	/* Set trigger handler */
+	s->trg = _trg;
+	s->trgdst = _trgdst;
+
+	/* Get address info */
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	if ((rc = getaddrinfo(_addr, _port, &hints, &info)) != 0) {
+		#if DEBUG
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rc));
+		#endif
+		return NULL;
+	}
+
+	/* Get socket */
+	s->sockfd = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+	if (s->sockfd == -1) {
+		#if DEBUG
+		fprintf(stderr, "socket: %s\n", strerror(errno));
+		#endif
+		return NULL;
+	}
+
+	/* Connect */
+	rc = connect(s->sockfd, info->ai_addr, info->ai_addrlen);
+	if (rc == -1) {
+		#if DEBUG
+		fprintf(stderr, "connect: %s\n", strerror(errno));
+		#endif
+	}
+
+	/* Clean up */
+	freeaddrinfo(info);
+
+	/* Mux stuff to play with timeout */
+	FD_ZERO(&s->fds);
+	FD_SET(s->sockfd, &s->fds);
+	s->tmt.tv_sec = SCP_TMT;
+	s->tmt.tv_usec = 0;
+
+	/* Check status and return */
+	if (rc == 0) {
+		/* Initialize mutex */
+		pthread_mutex_init(&s->mutex, NULL);
+
+		/* Initialize quit condition */
+		pthread_mutex_init(&s->mtxquit, NULL);
+		pthread_cond_init(&s->cndquit, NULL);
+
+		/* Initialize command readout condition */
+		pthread_mutex_init(&s->mtxread, NULL);
+		pthread_cond_init(&s->cndread, NULL);
+		
+		/* Say there's no command queued */
+		s->cmdc = 0;
+		s->cmd_first = NULL;
+		s->cmd_last = NULL;
+
+		/* Get ready for reading thread */
+		s->readkill = 0;
+		s->writekill = 0;
+
+		/* Start reading and writing threads */
+		pthread_create(&s->thdread, NULL, (void *(*)(void *)) scp_read, s);
+		pthread_create(&s->thdwrite, NULL, (void *(*)(void *)) scp_write, s);
+
+		return s;
+	}
+
+	free(s);
 	return NULL;
 }
 

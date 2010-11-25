@@ -25,8 +25,9 @@ typedef struct {
 	fd_set fds;	/* Socket set for use with select */
 	struct timeval tmt;
 	int readkill, writekill;
+	int digested;
 
-	pthread_t thdread;
+	pthread_t thdread, thdwrite;
 	pthread_mutex_t mutex;
 	pthread_mutex_t mtxquit;
 	pthread_cond_t cndquit;
@@ -71,9 +72,6 @@ int scp_destroy(scp_t *_scope);
 
 /* Send a query and ask for confirmation */
 void scp_query(scp_t *_scope, const char *_command);
-
-/* Reading thread routine (takes the scope as argument) */
-void *scp_read(void *_s);
 
 /* Toolchest */
 double scp_fto125(double _f);
