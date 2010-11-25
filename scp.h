@@ -38,6 +38,10 @@ typedef struct {
 	scp_cmd *cmd_first;
 	scp_cmd *cmd_last;
 	int cmdc;
+
+	/* Trigger function */
+	void (*trg)(char *_data, int _len, void *_dst);
+	void *trgdst;				/* Where the data goes to (e.g. a widget) */
 } scp_t;
 
 typedef struct {
@@ -50,7 +54,10 @@ typedef struct {
  * The scope panel is not locked at this time but it will be as
  * soon as you submit a command.
  */
-scp_t *scp_new(const char *_addr, const char *_port);
+scp_t *scp_new(const char *_addr,
+			   const char *_port,
+			   void (*_trg)(char *_data, int _len, void *_dst),
+			   void *_trgdst);
 
 /* Command queue functions */
 void scp_cmd_push(scp_t *_scope,

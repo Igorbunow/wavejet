@@ -200,6 +200,8 @@ void gui_ofst(int _last, char *_data, int _len, void *_chl);
 void gui_tsrc(int _islast, char *_data, int _len, void *_gui);
 void gui_tcpl(int _islast, char *_data, int _len, void *_gui);
 
+void gui_trg(char *_data, int _len, void *_gui);
+
 /* Drawing routines */
 void gui_drawgrid(gui_t *_gui);
 

@@ -9,6 +9,7 @@
 #include "scp.h"
 
 #define HDR_DATAFLAG	0x80
+#define HDR_SRFLAG		0x89	/* Service Request Flag */
 #define HDR_EOIFLAG		0x01
 #define HDR_RESERVED	100
 #define HDR_CLEAR		0x10
@@ -18,7 +19,10 @@
 #define DUSTHEAP		128		/* Max unwanted bytes coming from the scope */
 
 /* Connect to scope and returns pointer to it upon success, NULL otherwise */
-scp_t *scp_new(const char *_addr, const char *_port)
+scp_t *scp_new(const char *_addr,
+			   const char *_port,
+			   void (*_trg)(char *_data, int _len, void *_dst),
+			   void *_trgdst)
 {
 	int rc;
 	struct addrinfo hints;
@@ -27,6 +31,10 @@ scp_t *scp_new(const char *_addr, const char *_port)
 	
 	/* Make room for the scope to return */
 	s = (scp_t *) malloc(sizeof(scp_t));
+
+	/* Set trigger handler */
+	s->trg = _trg;
+	s->trgdst = _trgdst;
 
 	/* Get address info */
 	memset(&hints, 0, sizeof hints);
@@ -773,6 +781,7 @@ void *scp_read(void *_scope)
 	scp_t *s;
 	int stat;			/* General purpose status */
 	int lost;			/* Lost command (in case of timeout or error) */
+	int srech = 0;		/* Service Request Enable Register Change */
 
 	/* Convenient */
 	s = (scp_t *) _scope;
@@ -793,7 +802,16 @@ void *scp_read(void *_scope)
 		}
 
 		/* Write command to scope */
-		scp_query(s, cmd->query);
+		if (srech) {
+			/* No point in resending the query, it's just what I've done and
+			I haven't got my answer yet because of the SRE register change. */
+			printf("not asking for next query, reading directly\n");
+			printf("reminder: %s\n", cmd->query);
+			srech = 0;
+		} else {
+			scp_query(s, cmd->query);
+			printf("%s\n", cmd->query);
+		}
 
 		/* If command expects answer... */
 		if (cmd->hdlr != NULL) {
@@ -821,6 +839,7 @@ void *scp_read(void *_scope)
 
 				/* Turn size in the right order */
 				h.len = ntohl(h.len);
+/* 				printf("%d\n", h.len); */
 
 				/* Read one bunch */
 				for (rdc = 0; rdc < h.len && rdc < BUNCHSIZE;) {
@@ -861,6 +880,8 @@ void *scp_read(void *_scope)
 				/* Is it the last bunch? */
 				if (lost || h.dataflag == (HDR_EOIFLAG | HDR_DATAFLAG)) {
 					islast = 1;
+				} else if (h.dataflag == HDR_SRFLAG) {
+					islast = 1;
 				} else {
 					islast = 0;
 				}
@@ -869,14 +890,25 @@ void *scp_read(void *_scope)
 				if (lost) {
 					cmd->hdlr(1, NULL, 0, cmd->dst);
 					/* scp_recall(s); */
+				} else if (h.dataflag == HDR_SRFLAG) {
+					printf("called trg handler: ");
+					s->trg(strdata, h.len, s->trgdst);
+					srech = 1;	/* Do we have to pop cmd, shortly? */
 				} else {
+					printf("called ad hoc handler\n");
 					cmd->hdlr(islast, strdata, h.len, cmd->dst);
 				}
 			}
 		}
 
 		/* Get rid of last command */
-		scp_cmd_pop(s);
+		if (!srech ||
+			strcmp(cmd->query, "*cls; tese 1; *sre 1; trmd single") == 0) {
+			scp_cmd_pop(s);
+		} else {
+			/* Don't pop current command, this was only a SRE change and I
+			didn't get an answer for my query yet */
+		}
 
 		/* Check if there are any commands left */
 /* 		pthread_mutex_lock(&s->mtxquit);

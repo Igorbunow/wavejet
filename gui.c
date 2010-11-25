@@ -1448,7 +1448,7 @@ void *gui_connect(void *_gui)
 	}
 	prf_get(gui->prfs, "port", port);
 
-	scp = scp_new(addr, port);
+	scp = scp_new(addr, port, gui_trg, gui);
 
 	/* Take actions if successful */
 	if (scp) {
@@ -1965,13 +1965,13 @@ void gui_dtwave(int _last, char *_data, int _len, void *_gui)
 				fprintf(stderr, "\n\
 Unexpected waveform format -- Let me explain: it was assumed a waveform\n\
 header VICP packet would announce the *total* number of points for this\n\
-trace; but now I'm getting a single VICP packet with *more* points than\n\
-the aforexpected total.\n\
+trace (%d bytes, if I remember well); but now I'm getting a single %d bytes\n\
+VICP packet, i.e. with *more* points than the aforexpected total.\n\
 \n\
 Tell you what: I'll just try to plot the waveform like it was perfectly\n\
 normal, but you should have someone look into this because it's definitely\n\
 fishy. I won't repeat this message again. Enough bad news for today, \
-says I.\n");
+says I.\n", len, _len);
 				panic = 0;
 			}
 			memcpy(gui->data + c, _data,
@@ -2041,6 +2041,63 @@ says I.\n");
 		ch = (ch + 1) % 4;
 		c = 0;
 		header = 1;
+	}
+}
+
+void gui_trg(char *_data, int _len, void *_gui)
+{
+	gui_t *gui;
+
+	gui = _gui;
+
+	/* Get rid of trailing newline */
+	_data[_len - 1] = 0;
+
+	/* Register value is ASCII */
+	if (_data[0] == '1') {
+		printf("trigger! -- replot\n");
+		/* Switch on LED */
+		gdk_threads_enter();
+		gtk_image_set_from_pixbuf(GTK_IMAGE(gui->imgled), gui->pbfledon);
+		gdk_flush();
+		gdk_threads_leave();
+
+		/* Get new screenshot */
+		scp_cmd_push(gui->scp, "dtform byte", NULL, NULL);
+		scp_cmd_push(gui->scp, "wavesrc CH1", NULL, NULL);
+		scp_cmd_push(gui->scp, SCP_DTPOINTS, NULL, NULL);
+		scp_cmd_push(gui->scp, "dtwave?", gui_dtwave, gui);
+		scp_cmd_push(gui->scp, "wavesrc CH2", NULL, NULL);
+		scp_cmd_push(gui->scp, SCP_DTPOINTS, NULL, NULL);
+		scp_cmd_push(gui->scp, "dtwave?", gui_dtwave, gui);
+		scp_cmd_push(gui->scp, "wavesrc CH3", NULL, NULL);
+		scp_cmd_push(gui->scp, SCP_DTPOINTS, NULL, NULL);
+		scp_cmd_push(gui->scp, "dtwave?", gui_dtwave, gui);
+		scp_cmd_push(gui->scp, "wavesrc CH4", NULL, NULL);
+		scp_cmd_push(gui->scp, SCP_DTPOINTS, NULL, NULL);
+		scp_cmd_push(gui->scp, "dtwave?", gui_dtwave, gui);
+
+		/* Make the blinking visible */
+		usleep(100000);
+
+		/* Switch off LED and stop looking for a trigger */
+		gdk_threads_enter();
+		gtk_image_set_from_pixbuf(GTK_IMAGE(gui->imgled), gui->pbfledoff);
+		gdk_flush();
+		gdk_threads_leave();
+
+		/* Tasty! I'll get another one! */
+		pthread_mutex_lock(&gui->mtxloopplot);
+		pthread_cond_signal(&gui->cndloopplot);
+		pthread_mutex_unlock(&gui->mtxloopplot);
+	} else if (_data[0] == '0') {
+		printf("reset, nothing to do\n");
+		/* Got a service request register reset -- Nothing to do */
+	} else {
+		fprintf(stderr,
+				"Unexpected register value from service request: 0x%x\n",
+				_data[0]);
+		return;
 	}
 }
 
@@ -2243,8 +2300,19 @@ void *gui_loopplot(void *_gui)
 			scp_cmd_push(gui->scp, "dtwave?", gui_dtwave, gui);
 			usleep(GUI_PLTM);
 		} else if (trmd == TRMD_NORMAL) {
-			scp_cmd_push(gui->scp, "trmd?", gui_trmdnormal, gui);
-			usleep(GUI_TRCK);
+/* 			scp_cmd_push(gui->scp,
+						 "*CLS; TESE 1; *SRE 1; TRMD SINGLE",
+						 NULL, NULL); */
+			/* SRE register changes shouldn't expect synchronous replies, 
+			therefore I won't specify any handler */
+			scp_cmd_push(gui->scp, "*cls; tese 1; *sre 1; trmd single",
+						 NULL, NULL);
+			pthread_mutex_lock(&gui->mtxloopplot);
+			pthread_cond_wait(&gui->cndloopplot, &gui->mtxloopplot);
+			pthread_mutex_unlock(&gui->mtxloopplot);
+
+/* 			scp_cmd_push(gui->scp, "trmd?", gui_trmdnormal, gui);
+			usleep(GUI_TRCK); */
 		} else if (trmd == TRMD_SINGLE) {
 			scp_cmd_push(gui->scp, "trmd?", gui_trmdsingle, gui);
 			usleep(GUI_TRCK);
