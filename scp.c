@@ -685,11 +685,17 @@ void *scp_write(scp_t *_s)
 {
 	scp_cmd *cmd;
 
+	if (!_s) {
+		return NULL;
+	}
+
 	while (!_s->writekill) {
 		/* Wait til scope has finished digested before feeding it
 		with another bitball */
 		pthread_mutex_lock(&_s->mtxwrite);
-		pthread_cond_wait(&_s->cndwrite, &_s->mtxwrite);
+		while (!_s->digested || _s->cmdc < 1) {
+			pthread_cond_wait(&_s->cndwrite, &_s->mtxwrite);
+		}
 		pthread_mutex_unlock(&_s->mtxwrite);
 
 		/* Get another bitball from the plate */
@@ -699,6 +705,7 @@ void *scp_write(scp_t *_s)
 		scp_query(_s, cmd->query);
 
 		/* Bon appetit */
+		_s->digested = 0;
 
 		/* Dump command at once if it doesn't expect any reply */
 		if (!cmd->hdlr) {
@@ -719,13 +726,10 @@ void *scp_read(scp_t *_s)
 	char strdata[BUNCHSIZE] = "";	/* Byte-wise data buffer */
 	char dustbin[DUSTHEAP];			/* Unwanted bytes coming from the scope */
 	int leftover;
-	int islast;						/* Is last bunch flag */
 	/* Other variables */
 	scp_cmd *cmd;
-	scp_t *s;
-	int srech = 0;		/* Service Request Enable Register Change */
 
-	while (!s->readkill) {
+	while (!_s->readkill) {
 		/* Block until you read a header */
 		for (rdc = 0; rdc < 8;) {
 			rdc += read(_s->sockfd, (char *) &h + rdc, sizeof(header) - rdc);
@@ -756,23 +760,28 @@ void *scp_read(scp_t *_s)
 						dustbin,
 						leftover - rdc < DUSTHEAP ? leftover - rdc : DUSTHEAP);
 		}
-
-		/* There's at most one command left here and we're going to
-		take care of it right away. Therefore, scope should be done
-		digesting and it's time for another bitball. */
-		/* FIXME In fact, I should have made sure it was the last VICP packet */
-		pthread_mutex_lock(&_s->mtxwrite);
-		pthread_cond_signal(&_s->cndwrite);
-		pthread_mutex_unlock(&_s->mtxwrite);
 		
 		/* Service request or regular command? */
 		if (h.dataflag == HDR_SRERCHFLAG) {
-			srech = 1;	/* Do we have to pop cmd, shortly? */
+			/* srech = 1; */	/* Do we have to pop cmd, shortly? */
 			_s->trg(strdata, h.len, _s->trgdst);
 		} else {
-			cmd = scp_cmd_get(s);
-			cmd->hdlr(islast, strdata, h.len, cmd->dst);
-			scp_cmd_pop(s);
+			cmd = scp_cmd_get(_s);
+			if (h.dataflag == (HDR_EOIFLAG | HDR_DATAFLAG)) {
+				cmd->hdlr(1, strdata, h.len, cmd->dst);
+				scp_cmd_pop(_s);
+
+				/* There's at most one command left here
+				and we're going to take care of it right
+				away. Therefore, scope should be done
+				digesting and it's time for another bitball. */
+				pthread_mutex_lock(&_s->mtxwrite);
+				_s->digested = 1;
+				pthread_cond_signal(&_s->cndwrite);
+				pthread_mutex_unlock(&_s->mtxwrite);
+			} else {
+				cmd->hdlr(0, strdata, h.len, cmd->dst);
+			}
 		}
 	}
 	return NULL;
@@ -854,6 +863,9 @@ scp_t *scp_new(const char *_addr,
 		/* Get ready for reading thread */
 		s->readkill = 0;
 		s->writekill = 0;
+
+		/* Nothing swallowed, yet */
+		s->digested = 1;
 
 		/* Start reading and writing threads */
 		pthread_create(&s->thdread, NULL, (void *(*)(void *)) scp_read, s);
