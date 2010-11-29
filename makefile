@@ -2,14 +2,15 @@ LIBS = `pkg-config --libs gtk+-2.0 gthread-2.0` -lpng
 CFLAGS = -Wall -pedantic
 GFLAGS = $(CFLAGS) `pkg-config --cflags gtk+-2.0 gthread-2.0`
 PREFIX = /usr/local
+DEBUG = -g
 
 OBJECTS = main.o cbk.o gui.o scp.o numbers.o png.o data.c prf.o
 
-ifeq ($(origin DEBUG), undefined)
-	DEBUG =
-else
-	DEBUG = -g -O0 -DDEBUG
-endif
+#ifeq ($(origin DEBUG), undefined)
+#	DEBUG =
+#else
+#	DEBUG = -g -O0 -DDEBUG
+#endif
 
 wavejet: $(OBJECTS)
 	gcc $(DEBUG) -o wavejet $(OBJECTS) $(LIBS)

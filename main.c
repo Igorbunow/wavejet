@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/resource.h>
 #include <gtk/gtk.h>
 
 #include "gui.h"
@@ -14,6 +15,7 @@ void usage(void)
 int main(int argc, char *argv[])
 {
 	int rc;
+	struct rlimit rlim;
 
 	/* GUI variables */
 	gui_t *gui;
@@ -36,6 +38,14 @@ int main(int argc, char *argv[])
 	}
 
 	/* Now we're in the child process */
+
+	/* Enable core dumps */
+	rlim.rlim_cur = 10000000;
+	rlim.rlim_max = 10000000;
+	rc = setrlimit(RLIMIT_CORE, &rlim);
+	if (rc != 0) {
+		fprintf(stderr, "Couldn't enable core dumps: %s\n", strerror(rc));
+	}
 
 	/* Initialize GDK threads */
 	g_thread_init(NULL);
