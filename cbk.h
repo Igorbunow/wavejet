@@ -12,7 +12,7 @@
 /* Widget Actions */
 void cbk_optacn(GtkOptionMenu *_opt, void *_gui);
 int cbk_usracn(GtkWidget *_wgt, GdkEventButton *_evt, void *_gui);
-void cbk_tglacn(GtkToggleButton *_tgl, void *_gui);
+void cbk_tglacn(GtkButton *_tgl, void *_gui);
 void cbk_scl(GtkRange *_range, void *_gui);
 gboolean cbk_btnrlsofst(GtkWidget *_arw, GdkEventButton *_evt, void *_data);
 

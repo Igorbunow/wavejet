@@ -21,6 +21,22 @@ void cbk_quit(GtkWidget *_wgt, void *_gui)
 		pthread_mutex_unlock(&gui->scp->mtxquit);
 	} */
 
+	/* Remember trigger mode */
+/* 	if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(gui->rdoauto))) {
+		scp_cmd_push(gui->scp, "trmd stop", NULL, NULL);
+	}
+	else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(gui->rdonormal))) {
+		scp_cmd_push(gui->scp, "trmd normal", NULL, NULL);
+	}
+	else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(gui->rdosingle))) {
+		scp_cmd_push(gui->scp, "trmd single", NULL, NULL);
+	}
+	else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(gui->rdostop))) {
+		scp_cmd_push(gui->scp, "trmd stop", NULL, NULL);
+	} else {
+		fprintf(stderr, "Unexpected trigger mode\n");
+	} */
+
 	/* Terminate threads */
 	gui->loopkill = 1;
 	pthread_mutex_lock(&gui->mtxloopplot);
@@ -360,7 +376,7 @@ int cbk_usracn(GtkWidget *_wgt, GdkEventButton *_evt, void *_gui)
 }
 
 /* Channel Toggles */
-void cbk_tglacn(GtkToggleButton *_tgl, void *_gui)
+void cbk_tglacn(GtkButton *_tgl, void *_gui)
 {
 	int b;	/* GP Boolean */
 	gui_t *gui;
@@ -378,7 +394,7 @@ void cbk_tglacn(GtkToggleButton *_tgl, void *_gui)
 	wgtname = gtk_widget_get_name(GTK_WIDGET(_tgl));
 
 	if (strcmp(wgtname, "tglbtn1") == 0) {
-		b = gtk_toggle_button_get_active(_tgl);
+		b = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(_tgl));
 		if (b) {
 			scp_cmd_push(gui->scp, "c1:tra ON", NULL, NULL);
 		} else {
@@ -386,7 +402,7 @@ void cbk_tglacn(GtkToggleButton *_tgl, void *_gui)
 		}
 		scp_cmd_push(gui->scp, "c1:tra?", gui_tra, _tgl); 
 	} else if (strcmp(wgtname, "tglbtn2") == 0) {
-		b = gtk_toggle_button_get_active(_tgl);
+		b = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(_tgl));
 		if (b) {
 			scp_cmd_push(gui->scp, "c2:tra ON", NULL, NULL);
 		} else {
@@ -394,7 +410,7 @@ void cbk_tglacn(GtkToggleButton *_tgl, void *_gui)
 		}
 		scp_cmd_push(gui->scp, "c2:tra?", gui_tra, _tgl); 
 	} else if (strcmp(wgtname, "tglbtn3") == 0) {
-		b = gtk_toggle_button_get_active(_tgl);
+		b = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(_tgl));
 		if (b) {
 			scp_cmd_push(gui->scp, "c3:tra ON", NULL, NULL);
 		} else {
@@ -402,7 +418,7 @@ void cbk_tglacn(GtkToggleButton *_tgl, void *_gui)
 		}
 		scp_cmd_push(gui->scp, "c3:tra?", gui_tra, _tgl); 
 	} else if (strcmp(wgtname, "tglbtn4") == 0) {
-		b = gtk_toggle_button_get_active(_tgl);
+		b = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(_tgl));
 		if (b) {
 			scp_cmd_push(gui->scp, "c4:tra ON", NULL, NULL);
 		} else {
@@ -411,20 +427,29 @@ void cbk_tglacn(GtkToggleButton *_tgl, void *_gui)
 		scp_cmd_push(gui->scp, "c4:tra?", gui_tra, _tgl); 
 	} else if (strcmp(wgtname, "rdoauto") == 0) {
 		if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(_tgl))) {
-			scp_cmd_push(gui->scp, "trmd AUTO", NULL, NULL);
+			scp_cmd_push(gui->scp, "trmd auto", NULL, NULL);
+			pthread_mutex_lock(&gui->mtxloopplot);
+			pthread_cond_signal(&gui->cndloopplot);
+			pthread_mutex_unlock(&gui->mtxloopplot);
 		}
 	} else if (strcmp(wgtname, "rdonormal") == 0) {
 		if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(_tgl))) {
-			scp_cmd_push(gui->scp, "trmd SINGLE", NULL, NULL);
+			pthread_mutex_lock(&gui->mtxloopplot);
+			pthread_cond_signal(&gui->cndloopplot);
+			pthread_mutex_unlock(&gui->mtxloopplot);
+/* 			scp_cmd_push(gui->scp, "trmd normal", NULL, NULL); */
 		}
 	} else if (strcmp(wgtname, "rdosingle") == 0) {
 		if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(_tgl))) {
-			scp_cmd_push(gui->scp, "trmd SINGLE", NULL, NULL);
+			pthread_mutex_lock(&gui->mtxloopplot);
+			pthread_cond_signal(&gui->cndloopplot);
+			pthread_mutex_unlock(&gui->mtxloopplot);
+/* 			scp_cmd_push(gui->scp, "trmd single", NULL, NULL); */
 		}
 	} else if (strcmp(wgtname, "rdostop") == 0) {
 		if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(_tgl))) {
-			scp_cmd_push(gui->scp, "trmd STOP", NULL, NULL);
-		} else {
+/* 			scp_cmd_push(gui->scp, "trmd stop", NULL, NULL);
+		} else { */
 			pthread_mutex_lock(&gui->mtxloopplot);
 			pthread_cond_signal(&gui->cndloopplot);
 			pthread_mutex_unlock(&gui->mtxloopplot);

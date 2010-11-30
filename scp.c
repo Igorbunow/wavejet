@@ -697,7 +697,6 @@ void *scp_write(scp_t *_s)
 		with another bitball */
 		pthread_mutex_lock(&_s->mtxwrite);
 		while (!_s->digested || _s->cmdc < 1) {
-			printf("%d %d\n", _s->digested, _s->cmdc);
 			pthread_cond_wait(&_s->cndwrite, &_s->mtxwrite);
 		}
 		pthread_mutex_unlock(&_s->mtxwrite);
@@ -707,7 +706,6 @@ void *scp_write(scp_t *_s)
 
 		/* Feed scope with bitball */
 		scp_query(_s, cmd->query);
-		printf("%s\n", cmd->query);
 
 		/* Dump command at once if it doesn't expect any reply, flag scope
 		as digesting otherwise */
@@ -771,7 +769,6 @@ void *scp_read(scp_t *_s)
 		if (h.dataflag == HDR_SRERCHFLAG) {
 			/* srech = 1; */	/* Do we have to pop cmd, shortly? */
 			_s->trg(strdata, h.len, _s->trgdst);
-			printf("register change!\n");
 		} else {
 			cmd = scp_cmd_get(_s);
 			if (h.dataflag == (HDR_EOIFLAG | HDR_DATAFLAG)) {

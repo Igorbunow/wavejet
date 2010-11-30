@@ -540,7 +540,7 @@ GtkWidget *gui_controls_new(gui_t *_gui)
 	_gui->rdostop =
 	gtk_radio_button_new_with_label(NULL, "STOP");
 	gtk_widget_set_name(_gui->rdostop, "rdostop");
-	g_signal_connect(G_OBJECT(_gui->rdostop), "toggled",
+	g_signal_connect(G_OBJECT(_gui->rdostop), "released",
 					 G_CALLBACK(cbk_tglacn), _gui);
 	gtk_table_attach_defaults(GTK_TABLE(tbltrmd), _gui->rdostop, 1, 2, 1, 2);
 	gtk_widget_show(_gui->rdostop);
@@ -549,7 +549,7 @@ GtkWidget *gui_controls_new(gui_t *_gui)
 	gtk_radio_button_new_with_label_from_widget(GTK_RADIO_BUTTON(_gui->rdostop),
 												"AUTO");
 	gtk_widget_set_name(_gui->rdoauto, "rdoauto");
-	g_signal_connect(G_OBJECT(_gui->rdoauto), "toggled",
+	g_signal_connect(G_OBJECT(_gui->rdoauto), "released",
 					 G_CALLBACK(cbk_tglacn), _gui);
 	gtk_table_attach_defaults(GTK_TABLE(tbltrmd), _gui->rdoauto, 0, 1, 0, 1);
 	gtk_widget_show(_gui->rdoauto);
@@ -558,7 +558,7 @@ GtkWidget *gui_controls_new(gui_t *_gui)
 	gtk_radio_button_new_with_label_from_widget(GTK_RADIO_BUTTON(_gui->rdostop),
 												"NORMAL");
 	gtk_widget_set_name(_gui->rdonormal, "rdonormal");
-	g_signal_connect(G_OBJECT(_gui->rdonormal), "toggled",
+	g_signal_connect(G_OBJECT(_gui->rdonormal), "released",
 					 G_CALLBACK(cbk_tglacn), _gui);
 	gtk_table_attach_defaults(GTK_TABLE(tbltrmd), _gui->rdonormal, 1, 2, 0, 1);
 	gtk_widget_show(_gui->rdonormal);
@@ -567,7 +567,7 @@ GtkWidget *gui_controls_new(gui_t *_gui)
 	gtk_radio_button_new_with_label_from_widget(GTK_RADIO_BUTTON(_gui->rdostop),
 												"SINGLE");
 	gtk_widget_set_name(_gui->rdosingle, "rdosingle");
-	g_signal_connect(G_OBJECT(_gui->rdosingle), "toggled",
+	g_signal_connect(G_OBJECT(_gui->rdosingle), "released",
 					 G_CALLBACK(cbk_tglacn), _gui);
 	gtk_table_attach_defaults(GTK_TABLE(tbltrmd), _gui->rdosingle, 0, 1, 1, 2);
 	gtk_widget_show(_gui->rdosingle);
@@ -1410,6 +1410,38 @@ void gui_tcpl(int _islast, char *_data, int _len, void *_gui)
 	}
 }
 
+void gui_trmd(int _islast, char *_data, int _len, void *_gui)
+{
+	gui_t *gui;
+
+	/* Convenient */
+	gui = _gui;
+
+	/* Get rid of trailing newline */
+	_data[_len - 1] = 0;
+
+	gdk_threads_enter();
+
+	if (strcmp(_data, "AUTO") == 0) {
+		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(gui->rdoauto), TRUE);
+	} else if (strcmp(_data, "NORMAL") == 0) {
+		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(gui->rdonormal), TRUE);
+
+		pthread_mutex_lock(&gui->mtxloopplot);
+		pthread_cond_signal(&gui->cndloopplot);
+		pthread_mutex_unlock(&gui->mtxloopplot);
+	} else if (strcmp(_data, "SINGLE") == 0) {
+		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(gui->rdosingle), TRUE);
+	} else if (strcmp(_data, "STOP") == 0) {
+		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(gui->rdostop), TRUE);
+	} else {
+		fprintf(stderr, "Unexpected trigger mode: %s\n", _data);
+	}
+
+	gdk_flush();
+	gdk_threads_leave();
+}
+
 /* GUI connection to scope (THE connection, that is) */
 void *gui_connect(void *_gui)
 {
@@ -1485,6 +1517,7 @@ void *gui_connect(void *_gui)
 		scp_cmd_push(scp, "tcpl?", gui_tcpl, gui);
 		scp_cmd_push(scp, "tlvl?", gui_tlvl, gui);
 		scp_cmd_push(scp, "trdl?", gui_trdl, gui);
+/* 		scp_cmd_push(scp, "trmd?", gui_trmd, gui); */
 
 		#if DEV
 		/* Enable touch screen */
@@ -1502,8 +1535,7 @@ void *gui_connect(void *_gui)
 		gdk_threads_enter();
 		gtk_widget_set_sensitive(gui->controls, TRUE);
 		gtk_widget_set_sensitive(gui->scltlvl, TRUE);
-		/* FIXME What does this do? */
-		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(gui->rdonormal), TRUE);
+/* 		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(gui->rdonormal), TRUE); */
 		gdk_flush();
 		gdk_threads_leave();
 	} else {
@@ -2283,7 +2315,6 @@ void *gui_loopplot(void *_gui)
 		/* Take actions */
 		if (trmd == TRMD_AUTO) {
 			scp_cmd_push(gui->scp, "dtform byte", NULL, NULL);
-/* 			scp_cmd_push(gui->scp, "dtform ascii", NULL, NULL); */
 			scp_cmd_push(gui->scp, "wavesrc CH1", NULL, NULL);
 			scp_cmd_push(gui->scp, SCP_DTPOINTS, NULL, NULL);
 			scp_cmd_push(gui->scp, "dtwave?", gui_dtwave, gui);
@@ -2298,15 +2329,12 @@ void *gui_loopplot(void *_gui)
 			scp_cmd_push(gui->scp, "dtwave?", gui_dtwave, gui);
 			usleep(GUI_PLTM);
 		} else if (trmd == TRMD_NORMAL) {
-			printf("normal\n");
-/* 			scp_cmd_push(gui->scp,
-						 "*CLS; TESE 1; *SRE 1; TRMD SINGLE",
-						 NULL, NULL); */
 			/* SRE register changes shouldn't expect synchronous replies, 
 			therefore I won't specify any handler */
 			scp_cmd_push(gui->scp, "*cls; tese 1; *sre 1; trmd single",
 						 NULL, NULL);
 
+			/* Wait until there's a trigger */
 			pthread_mutex_lock(&gui->mtxloopplot);
 			pthread_cond_wait(&gui->cndloopplot, &gui->mtxloopplot);
 			pthread_mutex_unlock(&gui->mtxloopplot);
@@ -2314,10 +2342,23 @@ void *gui_loopplot(void *_gui)
 /* 			scp_cmd_push(gui->scp, "trmd?", gui_trmdnormal, gui);
 			usleep(GUI_TRCK); */
 		} else if (trmd == TRMD_SINGLE) {
-			scp_cmd_push(gui->scp, "trmd?", gui_trmdsingle, gui);
-			usleep(GUI_TRCK);
+			scp_cmd_push(gui->scp, "*cls; tese 1; *sre 1; trmd single",
+						 NULL, NULL);
+
+			/* Wait until there's a trigger */
+			pthread_mutex_lock(&gui->mtxloopplot);
+			pthread_cond_wait(&gui->cndloopplot, &gui->mtxloopplot);
+			pthread_mutex_unlock(&gui->mtxloopplot);
+
+			gdk_threads_enter();
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(rdostop), TRUE);
+			gdk_flush();
+			gdk_threads_leave();
+
+/* 			scp_cmd_push(gui->scp, "trmd?", gui_trmdsingle, gui);
+			usleep(GUI_TRCK); */
 		} else if (trmd == TRMD_STOP) {
-			printf("stop\n");
+			/* Sleep */
 			pthread_mutex_lock(&gui->mtxloopplot);
 			pthread_cond_wait(&gui->cndloopplot, &gui->mtxloopplot);
 			pthread_mutex_unlock(&gui->mtxloopplot);
