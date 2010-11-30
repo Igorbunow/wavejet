@@ -92,7 +92,10 @@ void scp_cmd_push(scp_t *_scope,
 	cmd->hdlr = _hdlr;
 	cmd->next = NULL;
 	cmd->dst = _dst;
-	strcpy(cmd->query, _query);
+	strncpy(cmd->query, _query, SCP_CMDLEN - 1);
+ 	/* Make sure command is null-terminated, cause strncpy doesn't garantee
+	that (man strncpy to see what I mean) */
+	cmd->query[SCP_CMDLEN - 1] = 0;
 	/* Add to queue as last cmd (if no last yet, queue has never been used) */
 	if (_scope->cmd_last) {
 		_scope->cmd_last->next = cmd;
@@ -101,14 +104,14 @@ void scp_cmd_push(scp_t *_scope,
 	}
 	_scope->cmd_last = cmd;
 	/* Increment command count and signal there's a new command */
-	pthread_mutex_lock(&_scope->mtxread);
-	pthread_cond_signal(&_scope->cndread);
+	pthread_mutex_lock(&_scope->mtxwrite);
 	_scope->cmdc++;
+	pthread_cond_signal(&_scope->cndwrite);
 	/* XXX */
 	#if DEBUG
 	printf("%.3d commands in the queue\r", _scope->cmdc);
 	#endif
-	pthread_mutex_unlock(&_scope->mtxread);
+	pthread_mutex_unlock(&_scope->mtxwrite);
 
 	/* Unlock mutex */
 	pthread_mutex_unlock(&_scope->mutex);
@@ -694,6 +697,7 @@ void *scp_write(scp_t *_s)
 		with another bitball */
 		pthread_mutex_lock(&_s->mtxwrite);
 		while (!_s->digested || _s->cmdc < 1) {
+			printf("%d %d\n", _s->digested, _s->cmdc);
 			pthread_cond_wait(&_s->cndwrite, &_s->mtxwrite);
 		}
 		pthread_mutex_unlock(&_s->mtxwrite);
@@ -703,13 +707,15 @@ void *scp_write(scp_t *_s)
 
 		/* Feed scope with bitball */
 		scp_query(_s, cmd->query);
+		printf("%s\n", cmd->query);
 
-		/* Bon appetit */
-		_s->digested = 0;
-
-		/* Dump command at once if it doesn't expect any reply */
+		/* Dump command at once if it doesn't expect any reply, flag scope
+		as digesting otherwise */
 		if (!cmd->hdlr) {
 			scp_cmd_pop(_s);
+		} else {
+			/* Bon appetit */
+			_s->digested = 0;
 		}
 	}
 
@@ -765,6 +771,7 @@ void *scp_read(scp_t *_s)
 		if (h.dataflag == HDR_SRERCHFLAG) {
 			/* srech = 1; */	/* Do we have to pop cmd, shortly? */
 			_s->trg(strdata, h.len, _s->trgdst);
+			printf("register change!\n");
 		} else {
 			cmd = scp_cmd_get(_s);
 			if (h.dataflag == (HDR_EOIFLAG | HDR_DATAFLAG)) {
@@ -854,6 +861,10 @@ scp_t *scp_new(const char *_addr,
 		/* Initialize command readout condition */
 		pthread_mutex_init(&s->mtxread, NULL);
 		pthread_cond_init(&s->cndread, NULL);
+
+		/* Initialize command write condition */
+		pthread_mutex_init(&s->mtxwrite, NULL);
+		pthread_cond_init(&s->cndwrite, NULL);
 		
 		/* Say there's no command queued */
 		s->cmdc = 0;
@@ -864,7 +875,7 @@ scp_t *scp_new(const char *_addr,
 		s->readkill = 0;
 		s->writekill = 0;
 
-		/* Nothing swallowed, yet */
+		/* Start on an empty stomach */
 		s->digested = 1;
 
 		/* Start reading and writing threads */

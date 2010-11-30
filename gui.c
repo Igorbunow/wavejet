@@ -537,7 +537,17 @@ GtkWidget *gui_controls_new(gui_t *_gui)
 	gtk_box_pack_start(GTK_BOX(vboxtrg), tbltrmd, FALSE, FALSE, 0);
 	gtk_widget_show(tbltrmd);
 
-	_gui->rdoauto = gtk_radio_button_new_with_label(NULL, "AUTO");
+	_gui->rdostop =
+	gtk_radio_button_new_with_label(NULL, "STOP");
+	gtk_widget_set_name(_gui->rdostop, "rdostop");
+	g_signal_connect(G_OBJECT(_gui->rdostop), "toggled",
+					 G_CALLBACK(cbk_tglacn), _gui);
+	gtk_table_attach_defaults(GTK_TABLE(tbltrmd), _gui->rdostop, 1, 2, 1, 2);
+	gtk_widget_show(_gui->rdostop);
+
+	_gui->rdoauto =
+	gtk_radio_button_new_with_label_from_widget(GTK_RADIO_BUTTON(_gui->rdostop),
+												"AUTO");
 	gtk_widget_set_name(_gui->rdoauto, "rdoauto");
 	g_signal_connect(G_OBJECT(_gui->rdoauto), "toggled",
 					 G_CALLBACK(cbk_tglacn), _gui);
@@ -545,7 +555,7 @@ GtkWidget *gui_controls_new(gui_t *_gui)
 	gtk_widget_show(_gui->rdoauto);
 
 	_gui->rdonormal =
-	gtk_radio_button_new_with_label_from_widget(GTK_RADIO_BUTTON(_gui->rdoauto),
+	gtk_radio_button_new_with_label_from_widget(GTK_RADIO_BUTTON(_gui->rdostop),
 												"NORMAL");
 	gtk_widget_set_name(_gui->rdonormal, "rdonormal");
 	g_signal_connect(G_OBJECT(_gui->rdonormal), "toggled",
@@ -554,22 +564,13 @@ GtkWidget *gui_controls_new(gui_t *_gui)
 	gtk_widget_show(_gui->rdonormal);
 
 	_gui->rdosingle =
-	gtk_radio_button_new_with_label_from_widget(GTK_RADIO_BUTTON(_gui->rdoauto),
+	gtk_radio_button_new_with_label_from_widget(GTK_RADIO_BUTTON(_gui->rdostop),
 												"SINGLE");
 	gtk_widget_set_name(_gui->rdosingle, "rdosingle");
 	g_signal_connect(G_OBJECT(_gui->rdosingle), "toggled",
 					 G_CALLBACK(cbk_tglacn), _gui);
 	gtk_table_attach_defaults(GTK_TABLE(tbltrmd), _gui->rdosingle, 0, 1, 1, 2);
 	gtk_widget_show(_gui->rdosingle);
-
-	_gui->rdostop =
-	gtk_radio_button_new_with_label_from_widget(GTK_RADIO_BUTTON(_gui->rdoauto),
-												"STOP");
-	gtk_widget_set_name(_gui->rdostop, "rdostop");
-	g_signal_connect(G_OBJECT(_gui->rdostop), "toggled",
-					 G_CALLBACK(cbk_tglacn), _gui);
-	gtk_table_attach_defaults(GTK_TABLE(tbltrmd), _gui->rdostop, 1, 2, 1, 2);
-	gtk_widget_show(_gui->rdostop);
 
 	/* LED */
 	rawled = png_raw_new(g_data_ledon);
@@ -2054,7 +2055,6 @@ void gui_trg(char *_data, int _len, void *_gui)
 
 	/* Register value is ASCII */
 	if (_data[0] == '1') {
-		printf("trigger! -- replot\n");
 		/* Switch on LED */
 		gdk_threads_enter();
 		gtk_image_set_from_pixbuf(GTK_IMAGE(gui->imgled), gui->pbfledon);
@@ -2090,7 +2090,6 @@ void gui_trg(char *_data, int _len, void *_gui)
 		pthread_cond_signal(&gui->cndloopplot);
 		pthread_mutex_unlock(&gui->mtxloopplot);
 	} else if (_data[0] == '0') {
-		printf("reset, nothing to do\n");
 		/* Got a service request register reset -- Nothing to do */
 	} else {
 		fprintf(stderr,
@@ -2299,6 +2298,7 @@ void *gui_loopplot(void *_gui)
 			scp_cmd_push(gui->scp, "dtwave?", gui_dtwave, gui);
 			usleep(GUI_PLTM);
 		} else if (trmd == TRMD_NORMAL) {
+			printf("normal\n");
 /* 			scp_cmd_push(gui->scp,
 						 "*CLS; TESE 1; *SRE 1; TRMD SINGLE",
 						 NULL, NULL); */
@@ -2306,6 +2306,7 @@ void *gui_loopplot(void *_gui)
 			therefore I won't specify any handler */
 			scp_cmd_push(gui->scp, "*cls; tese 1; *sre 1; trmd single",
 						 NULL, NULL);
+
 			pthread_mutex_lock(&gui->mtxloopplot);
 			pthread_cond_wait(&gui->cndloopplot, &gui->mtxloopplot);
 			pthread_mutex_unlock(&gui->mtxloopplot);
@@ -2316,6 +2317,7 @@ void *gui_loopplot(void *_gui)
 			scp_cmd_push(gui->scp, "trmd?", gui_trmdsingle, gui);
 			usleep(GUI_TRCK);
 		} else if (trmd == TRMD_STOP) {
+			printf("stop\n");
 			pthread_mutex_lock(&gui->mtxloopplot);
 			pthread_cond_wait(&gui->cndloopplot, &gui->mtxloopplot);
 			pthread_mutex_unlock(&gui->mtxloopplot);

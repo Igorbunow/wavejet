@@ -3,17 +3,17 @@
 
 #include <netdb.h>
 
-#define SCP_TMT 10	/* Timeout in seconds */
-
-#define SCP_DTPOINTS_MAX 500
-#define SCP_DTPOINTS "dtpoints 1000"
-/* #define SCP_DTPOINTS "dtpoints 10" */
-#define SCP_MAXVAL 32768	/* Max value a scope can give */
-#define SCP_CHC 4
-#define SCP_VDIVC 8			/* Number of vertical divisions */
+#define SCP_TMT				10				/* Timeout in seconds */
+#define SCP_CMDLEN			128
+#define SCP_DTPOINTS_MAX	500
+#define SCP_DTPOINTS		"dtpoints 1000"
+/* #define SCP_DTPOINTS		"dtpoints 10" */
+#define SCP_MAXVAL			32768			/* Max value a scope can give */
+#define SCP_CHC				4
+#define SCP_VDIVC			8				/* Number of vertical divisions */
 
 typedef struct scp_cmd {
-	char query[32];
+	char query[SCP_CMDLEN];
 	void (*hdlr)(int _last, char *_data, int _len, void *_dst);
 	void *dst;				/* Where the data goes to (e.g. a widget) */
 	struct scp_cmd *next;
