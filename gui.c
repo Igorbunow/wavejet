@@ -537,40 +537,39 @@ GtkWidget *gui_controls_new(gui_t *_gui)
 	gtk_box_pack_start(GTK_BOX(vboxtrg), tbltrmd, FALSE, FALSE, 0);
 	gtk_widget_show(tbltrmd);
 
-	_gui->rdostop =
-	gtk_radio_button_new_with_label(NULL, "STOP");
-	gtk_widget_set_name(_gui->rdostop, "rdostop");
-	g_signal_connect(G_OBJECT(_gui->rdostop), "released",
-					 G_CALLBACK(cbk_tglacn), _gui);
-	gtk_table_attach_defaults(GTK_TABLE(tbltrmd), _gui->rdostop, 1, 2, 1, 2);
-	gtk_widget_show(_gui->rdostop);
-
-	_gui->rdoauto =
-	gtk_radio_button_new_with_label_from_widget(GTK_RADIO_BUTTON(_gui->rdostop),
-												"AUTO");
-	gtk_widget_set_name(_gui->rdoauto, "rdoauto");
-	g_signal_connect(G_OBJECT(_gui->rdoauto), "released",
-					 G_CALLBACK(cbk_tglacn), _gui);
-	gtk_table_attach_defaults(GTK_TABLE(tbltrmd), _gui->rdoauto, 0, 1, 0, 1);
-	gtk_widget_show(_gui->rdoauto);
-
-	_gui->rdonormal =
-	gtk_radio_button_new_with_label_from_widget(GTK_RADIO_BUTTON(_gui->rdostop),
-												"NORMAL");
+	_gui->rdonormal = gtk_radio_button_new_with_label(NULL, "NORMAL");
 	gtk_widget_set_name(_gui->rdonormal, "rdonormal");
 	g_signal_connect(G_OBJECT(_gui->rdonormal), "released",
 					 G_CALLBACK(cbk_tglacn), _gui);
 	gtk_table_attach_defaults(GTK_TABLE(tbltrmd), _gui->rdonormal, 1, 2, 0, 1);
 	gtk_widget_show(_gui->rdonormal);
 
+	_gui->rdoauto =
+	gtk_radio_button_new_with_label_from_widget(
+		GTK_RADIO_BUTTON(_gui->rdonormal), "AUTO");
+	gtk_widget_set_name(_gui->rdoauto, "rdoauto");
+	g_signal_connect(G_OBJECT(_gui->rdoauto), "released",
+					 G_CALLBACK(cbk_tglacn), _gui);
+	gtk_table_attach_defaults(GTK_TABLE(tbltrmd), _gui->rdoauto, 0, 1, 0, 1);
+	gtk_widget_show(_gui->rdoauto);
+
 	_gui->rdosingle =
-	gtk_radio_button_new_with_label_from_widget(GTK_RADIO_BUTTON(_gui->rdostop),
-												"SINGLE");
+	gtk_radio_button_new_with_label_from_widget(
+		GTK_RADIO_BUTTON(_gui->rdonormal), "SINGLE");
 	gtk_widget_set_name(_gui->rdosingle, "rdosingle");
 	g_signal_connect(G_OBJECT(_gui->rdosingle), "released",
 					 G_CALLBACK(cbk_tglacn), _gui);
 	gtk_table_attach_defaults(GTK_TABLE(tbltrmd), _gui->rdosingle, 0, 1, 1, 2);
 	gtk_widget_show(_gui->rdosingle);
+
+	_gui->rdostop =
+	gtk_radio_button_new_with_label_from_widget(
+		GTK_RADIO_BUTTON(_gui->rdonormal), "STOP");
+	gtk_widget_set_name(_gui->rdostop, "rdostop");
+	g_signal_connect(G_OBJECT(_gui->rdostop), "released",
+					 G_CALLBACK(cbk_tglacn), _gui);
+	gtk_table_attach_defaults(GTK_TABLE(tbltrmd), _gui->rdostop, 1, 2, 1, 2);
+	gtk_widget_show(_gui->rdostop);
 
 	/* LED */
 	rawled = png_raw_new(g_data_ledon);
