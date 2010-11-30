@@ -50,7 +50,7 @@ gui_t *gui_new(char *_addr, char *_port)
 	gui = malloc(sizeof(gui_t));
 
 	/* Init a few values (not sure they're all needed) */
-	gui->scp = NULL;
+	gui->scp = NULL;		/* Needed in gui_disconnect() */
 	gui->cbklocked = 0;
 
 	/* Visual, for the images we'll draw later on */
@@ -1565,16 +1565,19 @@ int gui_disconnect(gui_t *_gui)
 	int rc;
 /* 	GtkWidget *lblconnect; */
 
-	/* Quit plotting thread */
-	_gui->plotkill = 1;
-	rc = pthread_mutex_lock(&_gui->mtxloopplot);
-	pthread_cond_signal(&_gui->cndloopplot);
-	pthread_mutex_unlock(&_gui->mtxloopplot);
+	/* Quit plotting thread if it was running (i.e. if there was a previous
+	connection to the scope */
+	if (_gui->scp) {
+		_gui->plotkill = 1;
+		rc = pthread_mutex_lock(&_gui->mtxloopplot);
+		pthread_cond_signal(&_gui->cndloopplot);
+		pthread_mutex_unlock(&_gui->mtxloopplot);
 
-	rc = pthread_join(_gui->thdloopplot, NULL);
-	if (rc != 0) {
-		/* Already joined */
-		return 0;
+		rc = pthread_join(_gui->thdloopplot, NULL);
+		if (rc != 0) {
+			/* Already joined */
+			return 0;
+		}
 	}
 
 /* 	rc = pthread_cond_destroy(&_gui->cndloopplot);
@@ -1590,7 +1593,7 @@ int gui_disconnect(gui_t *_gui)
 		return 1;
 	} */
 
-	/* Quit scope reading thread */
+	/* Quit scope threads */
 	gdk_threads_leave();
 	rc = scp_destroy(_gui->scp);
 	gdk_threads_enter();

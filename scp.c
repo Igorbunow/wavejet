@@ -200,11 +200,9 @@ int scp_destroy(scp_t *_scope)
 
 		close(_scope->sockfd);
 		free(_scope);
-
-		return 0;
 	}
 
-	return 1;
+	return 0;
 }
 
 #if DEV
