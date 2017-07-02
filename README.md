@@ -1,3 +1,11 @@
+<img src="wavejet.jpg" align="right" />
+
+WaveJet Control connects to a LeCroy WaveJet oscilloscope over the network and
+allows to remotely change its settings and view the traces. It offers a GTK+
+interface and talks GPIB. It acts as an alternative to sitting behind the
+oscilloscope itself, which you can't expect to do very often with a remote
+oscilloscope such as this one.
+
 # Requirements
 
   - GTK+ 2.2.4 or later (with the development libs)
