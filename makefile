@@ -1,4 +1,4 @@
-LIBS = `pkg-config --libs gtk+-2.0 gthread-2.0` -lpng
+LIBS = `pkg-config --libs gtk+-2.0 gthread-2.0` -lpng -lm
 CFLAGS = -Wall -pedantic
 GFLAGS = $(CFLAGS) `pkg-config --cflags gtk+-2.0 gthread-2.0`
 PREFIX = /usr/local
